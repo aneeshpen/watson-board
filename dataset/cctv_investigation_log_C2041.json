@@ -1,0 +1,350 @@
+{
+  "case_id": "C-2041",
+  "fir_number": "FIR/2025/CHN/00412",
+  "investigation_officer": "SI Pradeep Kumar",
+  "generated_at": "2025-04-27T05:30:00+05:30",
+  "data_sources": {
+    "cctv_cameras": ["CCTV-CHN-0412", "CCTV-CHN-0418", "CCTV-CHN-0420", "CCTV-CHN-0505"],
+    "phone_records": ["VIC-PH-9843", "SUS-PH-4421"],
+    "tower_logs": ["TOWER-4492", "TOWER-4510"],
+    "witness_statements": 3,
+    "forensic_reports": ["PM/CFSL/2025/04/2041", "TOX-2041", "DNA-D77", "DNA-B09"],
+    "financial_records": ["UPI-TXN-88412"],
+    "vehicle_anpr": ["ANPR-CHN-E4-0226"]
+  },
+  "timeline_events": [
+    {
+      "id": 1,
+      "timestamp": "2025-04-26T18:10:00+05:30",
+      "time_display": "18:10",
+      "event_type": "movement",
+      "title": "Victim leaves home",
+      "description": "R. Suresh departs his residence at 14/2 Pycrofts Road, Triplicane. Captured on residential CCTV.",
+      "source": "CCTV-CHN-0505",
+      "confidence": 92,
+      "severity": "low",
+      "entities": ["victim"],
+      "location": { "lat": 13.0560, "lng": 80.2620, "label": "Triplicane Residence" },
+      "ai_insight": "Normal movement pattern detected. Victim headed towards Chennai Central on foot. No signs of distress or coercion in gait analysis."
+    },
+    {
+      "id": 2,
+      "timestamp": "2025-04-26T19:42:00+05:30",
+      "time_display": "19:42",
+      "event_type": "financial",
+      "title": "UPI Transfer to Suspect S-118",
+      "description": "₹40,000 transferred from victim's HDFC account to Vetri (S-118) via Google Pay UPI. Transaction ID: UPI-TXN-88412.",
+      "source": "Bank Records / UPI Gateway",
+      "confidence": 88,
+      "severity": "high",
+      "entities": ["victim", "suspect"],
+      "metadata": {
+        "transaction_id": "UPI-TXN-88412",
+        "amount": 40000,
+        "currency": "INR",
+        "sender_upi": "r.suresh@hdfc",
+        "receiver_upi": "vetri.m@axis",
+        "payment_app": "Google Pay"
+      },
+      "ai_insight": "Financial link established. ₹40,000 UPI transfer from R. Suresh to Vetri (S-118) sets up financial motive 90 min before estimated TOD."
+    },
+    {
+      "id": 3,
+      "timestamp": "2025-04-26T20:14:00+05:30",
+      "time_display": "20:14",
+      "event_type": "cctv",
+      "title": "CCTV Spots Victim at E-Gate 4",
+      "description": "Victim captured walking through E-Gate 4, Chennai Central Station. Frame clarity: high. Face match confidence: 95%.",
+      "source": "CCTV-CHN-0412",
+      "confidence": 95,
+      "severity": "low",
+      "entities": ["victim"],
+      "location": { "lat": 13.0820, "lng": 80.2730, "label": "E-Gate 4, Chennai Central" },
+      "cctv_metadata": {
+        "camera_id": "CCTV-CHN-0412",
+        "resolution": "1080p",
+        "fps": 25,
+        "frame_numbers": [12842, 12843, 12844],
+        "face_match_score": 0.95,
+        "lighting": "artificial, adequate"
+      },
+      "ai_insight": "Victim seen at E-Gate 4. CCTV-0412 timestamp verified against NTP master. Consistent with movement trajectory from Triplicane."
+    },
+    {
+      "id": 4,
+      "timestamp": "2025-04-26T20:22:00+05:30",
+      "time_display": "20:22",
+      "event_type": "phone",
+      "title": "Phone Tower Overlap Detected",
+      "description": "Both victim (VIC-PH-9843) and suspect (SUS-PH-4421) phones connected to Tower 4492 simultaneously. Signal overlap begins.",
+      "source": "Airtel / Jio CDR Records",
+      "confidence": 81,
+      "severity": "high",
+      "entities": ["victim", "suspect"],
+      "metadata": {
+        "tower_id": "TOWER-4492",
+        "tower_location": { "lat": 13.0830, "lng": 80.2745 },
+        "tower_range_m": 500,
+        "victim_signal_strength": -72,
+        "suspect_signal_strength": -68
+      },
+      "ai_insight": "Both phones in same tower area. Victim and Vetri (S-118) within 500m of each other from 20:22–20:51. Proximity confirmed via triangulation."
+    },
+    {
+      "id": 5,
+      "timestamp": "2025-04-26T20:42:00+05:30",
+      "time_display": "20:42",
+      "event_type": "cctv",
+      "title": "Physical Altercation Captured",
+      "description": "CCTV-0412 captures physical confrontation between two individuals at E-Gate 4 loading bay. 6 key frames extracted. Motion blur indicates rapid movement.",
+      "source": "CCTV-CHN-0412",
+      "confidence": 90,
+      "severity": "critical",
+      "entities": ["victim", "suspect"],
+      "cctv_metadata": {
+        "camera_id": "CCTV-CHN-0412",
+        "frame_numbers": [13284, 13285, 13286, 13290, 13295, 13301],
+        "motion_score": 0.89,
+        "object_detected": "blunt_object",
+        "body_count": 2,
+        "violence_classifier_score": 0.94
+      },
+      "ai_insight": "Victim and suspect co-located. Altercation captured in 6 clear frames at 20:42. Key evidence of physical confrontation. Object consistent with iron rod detected in frames 13290–13301."
+    },
+    {
+      "id": 6,
+      "timestamp": "2025-04-26T20:48:00+05:30",
+      "time_display": "20:48",
+      "event_type": "anomaly",
+      "title": "Timestamp Anomaly — CCTV-0418",
+      "description": "CCTV-CHN-0418 shows +6 minute drift from NTP master clock. Frames timestamped 20:54 may actually correspond to 20:48 actual time.",
+      "source": "CCTV-CHN-0418",
+      "confidence": 47,
+      "severity": "high",
+      "entities": [],
+      "metadata": {
+        "camera_id": "CCTV-CHN-0418",
+        "clock_drift_seconds": 360,
+        "ntp_sync_status": "failed",
+        "last_ntp_sync": "2025-04-25T03:00:00+05:30"
+      },
+      "ai_insight": "Possible timestamp manipulation or clock drift. +6 minute offset detected. Could create false alibi window for suspect. Camera scheduled for forensic clock extraction."
+    },
+    {
+      "id": 7,
+      "timestamp": "2025-04-26T20:51:00+05:30",
+      "time_display": "20:51",
+      "event_type": "phone",
+      "title": "Victim Phone — Last Signal",
+      "description": "Victim's phone (VIC-PH-9843) transmits final signal to Tower 4492 at 20:51. IMEI goes dark after this point. No further network activity.",
+      "source": "Jio CDR Records",
+      "confidence": 84,
+      "severity": "high",
+      "entities": ["victim"],
+      "metadata": {
+        "device_imei": "356789012345678",
+        "last_tower": "TOWER-4492",
+        "signal_strength": -85,
+        "battery_level_est": "unknown"
+      },
+      "ai_insight": "Victim's device goes dark at 20:51 — consistent with incapacitation or device destruction during the altercation window (20:42–20:55)."
+    },
+    {
+      "id": 8,
+      "timestamp": "2025-04-26T21:10:00+05:30",
+      "time_display": "21:10",
+      "event_type": "witness",
+      "title": "Eyewitness Statement — Anandhi K.",
+      "description": "Anandhi K. (tea stall owner, 52F) states she saw the victim near E-Gate 4 at approximately 20:14. Reports hearing raised voices around 20:40. Did not directly witness the assault.",
+      "source": "Witness Interview / E-4 Flower Bazaar PS",
+      "confidence": 76,
+      "severity": "low",
+      "entities": ["victim", "witness"],
+      "metadata": {
+        "witness_name": "Anandhi K.",
+        "witness_age": 52,
+        "witness_occupation": "Tea stall owner",
+        "statement_recorded_by": "SI Pradeep Kumar",
+        "statement_recorded_at": "2025-04-26T23:30:00+05:30"
+      },
+      "ai_insight": "Witness saw argument near station. Statement consistent with CCTV-0412 timeline. Reliable eyewitness — placed within 40m of event location."
+    },
+    {
+      "id": 9,
+      "timestamp": "2025-04-26T21:30:00+05:30",
+      "time_display": "21:30",
+      "event_type": "forensic",
+      "title": "Autopsy — TOD Estimation",
+      "description": "Post-mortem examination narrows time of death to 19:30–21:00 based on rigor mortis, livor mortis, algor mortis (core temp 31.2°C), and vitreous potassium (6.1 mmol/L).",
+      "source": "PM/CFSL/2025/04/2041",
+      "confidence": 76,
+      "severity": "low",
+      "entities": ["victim"],
+      "metadata": {
+        "core_temperature_c": 31.2,
+        "ambient_temperature_c": 28.0,
+        "vitreous_potassium_mmol": 6.1,
+        "rigor_mortis": "fully established",
+        "livor_mortis": "fixed, anterior"
+      },
+      "ai_insight": "TOD window narrowed. Vitreous K+ 6.1 mmol/L + rigor mortis → TOD 19:30–21:00. Consistent with CCTV altercation at 20:42."
+    },
+    {
+      "id": 10,
+      "timestamp": "2025-04-26T22:14:00+05:30",
+      "time_display": "22:14",
+      "event_type": "vehicle",
+      "title": "Suspect Vehicle Exits Crime Area",
+      "description": "ANPR camera captures TN-09-AC-4421 (white Maruti Ertiga) leaving Chennai Central area via EVR Salai. Vehicle registered to Murugan K. — known associate of S-118.",
+      "source": "ANPR-CHN-E4-0226",
+      "confidence": 72,
+      "severity": "high",
+      "entities": ["suspect"],
+      "metadata": {
+        "vehicle_number": "TN-09-AC-4421",
+        "vehicle_model": "Maruti Ertiga",
+        "vehicle_color": "White",
+        "registered_owner": "Murugan K.",
+        "owner_relation_to_suspect": "Known associate"
+      },
+      "ai_insight": "Suspect vehicle identified. TN-09-AC-4421 linked to S-118 associate. Exits scene 73 min post estimated TOD. Possible getaway vehicle."
+    },
+    {
+      "id": 11,
+      "timestamp": "2025-04-26T22:40:00+05:30",
+      "time_display": "22:40",
+      "event_type": "forensic",
+      "title": "DNA Match — Sample D-77",
+      "description": "STR profiling of blood sample D-77 (collected from victim's occipital wound) confirms mixed DNA. Minor contributor matches suspect S-118 (Vetri) at 99.2% confidence across 15 loci.",
+      "source": "CFSL DNA Lab / Report DNA-D77",
+      "confidence": 99,
+      "severity": "critical",
+      "entities": ["victim", "suspect"],
+      "metadata": {
+        "sample_id": "D-77",
+        "collection_site": "Occipital wound scalp",
+        "major_contributor": "R. Suresh (victim)",
+        "minor_contributor": "S-118 (Vetri)",
+        "match_confidence": 99.2,
+        "loci_matched": "15/15"
+      },
+      "ai_insight": "Strong biological evidence. STR profiling confirms DNA from occipital wound = Vetri (S-118) at 99.2%. Primary forensic link between suspect and victim at point of injury."
+    },
+    {
+      "id": 12,
+      "timestamp": "2025-04-26T23:02:00+05:30",
+      "time_display": "23:02",
+      "event_type": "witness",
+      "title": "Witness #2 — Auto Driver Statement",
+      "description": "Auto driver Tamil Selvan reports seeing a person matching S-204 description near E-Gate 4 at approximately 22:10. However, S-204's phone shows no tower activity in the area.",
+      "source": "Witness Interview / E-4 Flower Bazaar PS",
+      "confidence": 71,
+      "severity": "high",
+      "entities": ["witness"],
+      "metadata": {
+        "witness_name": "Tamil Selvan",
+        "witness_age": 38,
+        "witness_occupation": "Auto rickshaw driver",
+        "auto_number": "TN-09-A-7723",
+        "contradicts_digital_evidence": true
+      },
+      "ai_insight": "Second witness corroborates presence but contradicts digital evidence. Places S-204 at scene — however S-204's phone shows no tower activity in the area. Inconsistency flagged for review."
+    },
+    {
+      "id": 13,
+      "timestamp": "2025-04-27T00:15:00+05:30",
+      "time_display": "00:15",
+      "event_type": "forensic",
+      "title": "Toxicology Report — Diazepam Detected",
+      "description": "Rapid toxicology screening detects trace diazepam (0.03 mg/L) in victim's femoral blood. Concentration is sub-therapeutic, suggesting ingestion 4–6 hours before death.",
+      "source": "TOX-2041 / CFSL Toxicology Lab",
+      "confidence": 82,
+      "severity": "critical",
+      "entities": ["victim", "suspect"],
+      "metadata": {
+        "report_id": "TOX-2041",
+        "substance": "Diazepam",
+        "concentration_mg_l": 0.03,
+        "therapeutic_range": "0.2–0.8 mg/L",
+        "metabolite": "Nordiazepam",
+        "metabolite_concentration": 0.01
+      },
+      "ai_insight": "Drug traces detected. Diazepam at sub-therapeutic level suggests involuntary sedation prior to assault. Consistent with S-118's background as known drug supplier in North Chennai area."
+    },
+    {
+      "id": 14,
+      "timestamp": "2025-04-27T01:00:00+05:30",
+      "time_display": "01:00",
+      "event_type": "ai",
+      "title": "AI Hypothesis — Motive Analysis",
+      "description": "Watson-Board AI model generates hypothesis: Financial dispute over ₹40,000 likely escalated into premeditated assault. S-118 had prior record of violent debt collection. Probability score: 78%.",
+      "source": "Watson-Board AI Engine v3.2",
+      "confidence": 78,
+      "severity": "low",
+      "entities": ["suspect"],
+      "ai_insight": "Motive hypothesis generated. Financial dispute over ₹40,000 likely escalated into premeditated assault. S-118 is primary suspect per AI model. Supporting evidence: financial link, DNA match, CCTV, phone co-location."
+    },
+    {
+      "id": 15,
+      "timestamp": "2025-04-27T02:30:00+05:30",
+      "time_display": "02:30",
+      "event_type": "analysis",
+      "title": "Movement Reconstruction Complete",
+      "description": "Full movement paths reconstructed for both victim and suspect using phone GPS, tower pings, CCTV timestamps, and witness statements. Routes converge at E-Gate 4 at 20:42.",
+      "source": "Watson-Board Movement Analysis Engine",
+      "confidence": 86,
+      "severity": "low",
+      "entities": ["victim", "suspect"],
+      "ai_insight": "Routes overlap at E-Gate 4. Movement reconstruction confirms both victim and suspect converged at 20:42 — matching altercation time exactly. Victim route: Triplicane → Central. Suspect route: North Chennai → Central."
+    },
+    {
+      "id": 16,
+      "timestamp": "2025-04-27T03:10:00+05:30",
+      "time_display": "03:10",
+      "event_type": "anomaly",
+      "title": "Statement Contradiction Detected",
+      "description": "Cross-referencing witness statements: Anandhi K. places argument at 20:40, but CCTV-0418 (with +6 min drift) shows different activity at adjusted timestamp. Auto driver timeline also conflicts.",
+      "source": "Watson-Board Contradiction Detection Engine",
+      "confidence": 58,
+      "severity": "high",
+      "entities": [],
+      "ai_insight": "Witness timing conflicts with CCTV-0418 adjusted timeline. Anandhi K. testimony is broadly consistent, but auto driver's statement about S-204 cannot be corroborated. Contradiction flagged — requires further investigation."
+    },
+    {
+      "id": 17,
+      "timestamp": "2025-04-27T04:00:00+05:30",
+      "time_display": "04:00",
+      "event_type": "forensic",
+      "title": "Crime Scene Reconstruction",
+      "description": "Complete weapon → injury → blood sample chain: Iron rod (600g, 87cm) → 3 occipital impacts → DNA B-09 (victim blood on weapon) + D-77 (suspect DNA in wound). Weapon discarded 100m NE in drainage canal.",
+      "source": "CFSL Crime Scene Unit",
+      "confidence": 89,
+      "severity": "critical",
+      "entities": ["victim", "suspect"],
+      "metadata": {
+        "weapon_type": "Iron rod",
+        "weapon_weight_g": 600,
+        "weapon_length_cm": 87,
+        "weapon_diameter_cm": 2.5,
+        "recovery_distance_m": 100,
+        "recovery_location": "Drainage canal, NE of E-Gate 4",
+        "fingerprint_match": "S-118 (partial, 74%)",
+        "blood_sample": "B-09 — victim match 15/15 loci"
+      },
+      "ai_insight": "Cause of death linked. Iron rod → head trauma → blood sample B-09 chain established. Weapon discarded 100m post-assault — partial fingerprint matches S-118 at 74% confidence."
+    },
+    {
+      "id": 18,
+      "timestamp": "2025-04-27T05:30:00+05:30",
+      "time_display": "05:30",
+      "event_type": "ai",
+      "title": "Final AI Narrative Generated",
+      "description": "Watson-Board AI has generated a complete narrative reconstruction with 90% overall confidence. All major evidence streams (CCTV, DNA, phone, financial, forensic) converge on S-118 as primary suspect.",
+      "source": "Watson-Board AI Engine v3.2",
+      "confidence": 90,
+      "severity": "critical",
+      "entities": ["victim", "suspect"],
+      "ai_insight": "Victim R. Suresh left home at 18:10. He reached E-Gate 4 by 20:14 where he met suspect S-118 (Vetri). A financial dispute over ₹40,000 likely escalated. Physical altercation captured on CCTV at 20:42. Victim was assaulted with an iron rod causing 3 occipital impacts with fatal head trauma. TOD estimated 20:30–21:00. Suspect fled north, vehicle spotted at 22:14. DNA evidence (99.2%), CCTV footage, phone co-location, and financial motive all converge. S-118 is the primary suspect with 90% confidence."
+    }
+  ]
+}

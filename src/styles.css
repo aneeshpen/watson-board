@@ -1,0 +1,525 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+@import "reactflow/dist/style.css";
+@import "leaflet/dist/leaflet.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-neon: var(--neon);
+  --color-neon-2: var(--neon-2);
+  --color-danger: var(--danger);
+  --color-warn: var(--warn);
+  --color-success: var(--success);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+}
+
+:root,
+.dark {
+  --radius: 0.75rem;
+
+  /* Deep navy / black intelligence theme */
+  --background: oklch(0.16 0.03 260);
+  --foreground: oklch(0.96 0.01 240);
+
+  --card: oklch(0.20 0.035 258 / 0.65);
+  --card-foreground: oklch(0.96 0.01 240);
+
+  --popover: oklch(0.18 0.035 260);
+  --popover-foreground: oklch(0.96 0.01 240);
+
+  --primary: oklch(0.78 0.18 230);
+  /* neon cyan-blue */
+  --primary-foreground: oklch(0.12 0.03 260);
+
+  --secondary: oklch(0.26 0.04 260);
+  --secondary-foreground: oklch(0.95 0.01 240);
+
+  --muted: oklch(0.24 0.03 260);
+  --muted-foreground: oklch(0.70 0.04 250);
+
+  --accent: oklch(0.32 0.10 240);
+  --accent-foreground: oklch(0.96 0.01 240);
+
+  --destructive: oklch(0.65 0.25 25);
+  --destructive-foreground: oklch(0.98 0 0);
+
+  /* Tinted borders (cyan + violet accents) */
+  --border: oklch(0.56 0.09 235 / 0.42);
+  --border-primary: oklch(0.78 0.18 230 / 0.52);
+  --border-accent: oklch(0.78 0.22 280 / 0.38);
+  --input: oklch(0.30 0.05 250 / 0.6);
+  --ring: oklch(0.78 0.18 230);
+
+  --neon: oklch(0.82 0.20 220);
+  --neon-2: oklch(0.78 0.22 280);
+  --danger: oklch(0.66 0.25 25);
+  --warn: oklch(0.82 0.18 75);
+  --success: oklch(0.78 0.18 155);
+
+  --chart-1: oklch(0.78 0.18 230);
+  --chart-2: oklch(0.78 0.22 280);
+  --chart-3: oklch(0.82 0.18 75);
+  --chart-4: oklch(0.66 0.25 25);
+  --chart-5: oklch(0.78 0.18 155);
+
+  --sidebar: oklch(0.14 0.03 260 / 0.85);
+  --sidebar-foreground: oklch(0.92 0.01 240);
+  --sidebar-primary: oklch(0.78 0.18 230);
+  --sidebar-primary-foreground: oklch(0.12 0.03 260);
+  --sidebar-accent: oklch(0.24 0.05 260);
+  --sidebar-accent-foreground: oklch(0.96 0.01 240);
+  --sidebar-border: oklch(0.72 0.13 230 / 0.42);
+  --sidebar-ring: oklch(0.78 0.18 230);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
+    background-image:
+      radial-gradient(1200px 800px at 80% -10%, oklch(0.30 0.12 240 / 0.35), transparent 60%),
+      radial-gradient(900px 700px at -10% 110%, oklch(0.30 0.15 280 / 0.28), transparent 60%),
+      linear-gradient(180deg, oklch(0.12 0.03 260) 0%, oklch(0.10 0.03 260) 100%);
+    background-attachment: fixed;
+  }
+
+  /* subtle grid overlay */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-image:
+      linear-gradient(to right, oklch(0.78 0.18 230 / 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, oklch(0.78 0.18 230 / 0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+  }
+}
+
+@layer utilities {
+  .glass {
+    background: linear-gradient(180deg, oklch(0.22 0.04 258 / 0.55), oklch(0.18 0.04 260 / 0.45));
+    border: 1px solid var(--border-primary);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: 0 0 0 1px var(--border-accent);
+  }
+
+  .glass-strong {
+    background: linear-gradient(180deg, oklch(0.24 0.05 258 / 0.75), oklch(0.18 0.04 260 / 0.65));
+    border: 1px solid var(--border-primary);
+    backdrop-filter: blur(18px) saturate(160%);
+    box-shadow: 0 0 0 1px var(--border-accent);
+  }
+
+  .neon-text {
+    color: oklch(0.92 0.18 220);
+    text-shadow: 0 0 14px oklch(0.78 0.22 230 / 0.55);
+  }
+
+  /* Border only — no glow */
+  .neon-border {
+    border: 1px solid var(--border-primary);
+    box-shadow: 0 0 0 1px var(--border-accent);
+  }
+
+  /* Outline avoids overriding Tailwind `border-*` on the same node */
+  .glow-primary {
+    box-shadow: none;
+    outline: 1px solid var(--border-primary);
+    outline-offset: 1px;
+  }
+
+  .glow-danger {
+    box-shadow: none;
+    outline: 1px solid oklch(0.66 0.25 25 / 0.65);
+    outline-offset: 1px;
+  }
+
+  .border-primary-accent {
+    border-color: var(--border-primary);
+  }
+
+  .border-accent-ring {
+    border-color: var(--border-accent);
+  }
+
+  .scanline {
+    background-image: repeating-linear-gradient(to bottom, transparent 0 2px, oklch(0.78 0.22 230 / 0.04) 2px 3px);
+  }
+
+  .text-gradient {
+    background: linear-gradient(90deg, oklch(0.92 0.18 220), oklch(0.85 0.20 280));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 oklch(0.78 0.22 230 / 0.6);
+  }
+
+  70% {
+    box-shadow: 0 0 0 14px oklch(0.78 0.22 230 / 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 oklch(0.78 0.22 230 / 0);
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s infinite;
+}
+
+@keyframes pulse-ring-danger {
+  0% {
+    box-shadow: 0 0 0 0 oklch(0.66 0.25 25 / 0.7);
+  }
+
+  70% {
+    box-shadow: 0 0 0 16px oklch(0.66 0.25 25 / 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 oklch(0.66 0.25 25 / 0);
+  }
+}
+
+.animate-pulse-ring-danger {
+  animation: pulse-ring-danger 1.6s infinite;
+}
+
+@keyframes float-y {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.animate-float {
+  animation: float-y 5s ease-in-out infinite;
+}
+
+@keyframes scan {
+  0% {
+    transform: translateY(-100%);
+  }
+
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+.animate-scan {
+  animation: scan 4s linear infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent, oklch(0.78 0.22 230 / 0.25), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2.4s linear infinite;
+}
+
+/* React Flow theme overrides */
+.react-flow__renderer {
+  background: transparent;
+}
+
+.react-flow__background {
+  opacity: 0.45;
+}
+
+.react-flow__edge-path {
+  stroke: oklch(0.78 0.18 230 / 0.55);
+  stroke-width: 1.5;
+}
+
+.react-flow__edge.danger .react-flow__edge-path {
+  stroke: oklch(0.66 0.25 25);
+  filter: drop-shadow(0 0 6px oklch(0.66 0.25 25 / 0.6));
+}
+
+.react-flow__attribution {
+  display: none;
+}
+
+.react-flow__controls {
+  background: transparent;
+  box-shadow: none;
+}
+
+.react-flow__controls button {
+  background: oklch(0.20 0.04 260 / 0.8);
+  border: 1px solid oklch(0.78 0.18 230 / 0.3);
+  color: oklch(0.95 0.01 240);
+}
+
+/* Leaflet dark */
+.leaflet-container {
+  background: oklch(0.12 0.03 260);
+}
+
+.leaflet-tile {
+  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9);
+}
+
+.leaflet-control-attribution {
+  display: none;
+}
+
+/* ─── Forensic Graph Animations ─────────────────────────────────────────────── */
+
+/* Victim center node — dual concentric pulse rings */
+@keyframes victim-pulse-inner {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.65), 0 0 30px rgba(34, 211, 238, 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 18px rgba(34, 211, 238, 0), 0 0 30px rgba(34, 211, 238, 0.4);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0), 0 0 30px rgba(34, 211, 238, 0.4);
+  }
+}
+
+.animate-victim-pulse {
+  animation: victim-pulse-inner 2.4s ease-out infinite;
+}
+
+/* Outer slower ring overlay */
+@keyframes victim-ring-outer {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.30);
+    opacity: 1;
+  }
+
+  80% {
+    box-shadow: 0 0 0 36px rgba(34, 211, 238, 0);
+    opacity: 0;
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
+    opacity: 0;
+  }
+}
+
+.animate-victim-ring-outer {
+  animation: victim-ring-outer 3.5s ease-out infinite 0.8s;
+}
+
+/* Suspect danger throb */
+@keyframes suspect-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7), 0 0 20px rgba(239, 68, 68, 0.35);
+  }
+
+  70% {
+    box-shadow: 0 0 0 14px rgba(239, 68, 68, 0), 0 0 20px rgba(239, 68, 68, 0.35);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0), 0 0 20px rgba(239, 68, 68, 0.35);
+  }
+}
+
+.animate-suspect-pulse {
+  animation: suspect-pulse 1.8s ease-out infinite;
+}
+
+/* Forensic edge animated dash */
+@keyframes forensic-dash {
+  from {
+    stroke-dashoffset: 60;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.forensic-edge-animated {
+  animation: forensic-dash 1.6s linear infinite;
+}
+
+/* Edge label */
+.forensic-edge-label {
+  pointer-events: all;
+}
+
+/* React Flow overrides for forensic graph */
+.react-flow__renderer {
+  background: transparent;
+}
+
+.react-flow__background {
+  opacity: 0.35;
+}
+
+.react-flow__attribution {
+  display: none;
+}
+
+.react-flow__controls {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.react-flow__controls-button {
+  background: rgba(15, 20, 40, 0.85) !important;
+  border: 1px solid rgba(100, 180, 255, 0.22) !important;
+  color: rgba(200, 230, 255, 0.9) !important;
+  border-radius: 6px !important;
+  margin-bottom: 3px !important;
+}
+
+.react-flow__controls-button:hover {
+  background: rgba(25, 35, 60, 0.95) !important;
+}
+
+.react-flow__minimap {
+  border-radius: 10px !important;
+  overflow: hidden;
+}
+
+/* ── Node spawn animation ─────────────────────────────────────────────────── */
+@keyframes node-spawn {
+  0%   { opacity: 0; transform: scale(0.5); filter: brightness(2.5); }
+  40%  { opacity: 1; transform: scale(1.08); filter: brightness(1.4); }
+  100% { opacity: 1; transform: scale(1);   filter: brightness(1); }
+}
+
+.animate-node-spawn {
+  animation: node-spawn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ── Cluster breathing glow ───────────────────────────────────────────────── */
+@keyframes cluster-breathe {
+  0%, 100% { opacity: 0.15; transform: scale(1); }
+  50%       { opacity: 0.28; transform: scale(1.03); }
+}
+
+.animate-cluster-breathe {
+  animation: cluster-breathe 4s ease-in-out infinite;
+}
+
+/* ── FAB pulse (relation creation mode) ───────────────────────────────────── */
+@keyframes fab-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.5); }
+  50%       { box-shadow: 0 0 0 8px rgba(139, 92, 246, 0); }
+}
+
+.animate-fab-glow {
+  animation: fab-glow 1.5s ease-in-out infinite;
+}
+
+/* ── Suspicious edge extra pulse ──────────────────────────────────────────── */
+@keyframes suspicious-pulse {
+  0%, 100% { stroke-opacity: 0.7; }
+  50%       { stroke-opacity: 1.0; }
+}
+
+.forensic-edge-suspicious {
+  animation: suspicious-pulse 1.2s ease-in-out infinite;
+}
+
+/* ── Context menu backdrop blur ───────────────────────────────────────────── */
+.context-menu-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* ── Relation flow banner ─────────────────────────────────────────────────── */
+@keyframes relation-banner-glow {
+  0%, 100% { border-color: rgba(139, 92, 246, 0.3); }
+  50%       { border-color: rgba(139, 92, 246, 0.7); }
+}
+
+.animate-relation-banner {
+  animation: relation-banner-glow 1.8s ease-in-out infinite;
+}
+
+/* ── ReactFlow node selection ring ────────────────────────────────────────── */
+.react-flow__node.selected > div {
+  outline: none;
+}
+
+/* ── Smooth node transition ───────────────────────────────────────────────── */
+.react-flow__node {
+  transition: opacity 0.3s ease;
+}
+
+/* ── Minimap node dots animated ───────────────────────────────────────────── */
+.react-flow__minimap-node {
+  transition: fill 0.3s ease;
+}

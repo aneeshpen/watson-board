@@ -1,0 +1,34 @@
+device_id,entity,timestamp,latitude,longitude,altitude_m,accuracy_m,speed_kmh,heading_deg,label,source
+VIC-PH-9843,victim,2025-04-26T18:10:00+05:30,13.0560,80.2620,12.4,8.2,4.1,185,Departed Triplicane residence,Phone GPS
+VIC-PH-9843,victim,2025-04-26T18:18:00+05:30,13.0580,80.2630,11.9,6.5,5.3,190,Walking south on Pycrofts Rd,Phone GPS
+VIC-PH-9843,victim,2025-04-26T18:28:00+05:30,13.0610,80.2645,12.1,7.8,4.8,175,Crossed Wallajah Rd junction,Phone GPS
+VIC-PH-9843,victim,2025-04-26T18:42:00+05:30,13.0640,80.2650,11.5,9.1,3.9,168,Near Ice House area,Phone GPS
+VIC-PH-9843,victim,2025-04-26T18:55:00+05:30,13.0670,80.2660,12.8,5.4,5.1,170,Entered Chepauk area,Phone GPS
+VIC-PH-9843,victim,2025-04-26T19:05:00+05:30,13.0685,80.2670,12.2,8.0,4.5,172,Near Marina Beach Rd,Phone GPS
+VIC-PH-9843,victim,2025-04-26T19:15:00+05:30,13.0700,80.2680,11.8,6.3,0.0,0,Stopped at Landmark Hotel,Phone GPS
+VIC-PH-9843,victim,2025-04-26T19:30:00+05:30,13.0720,80.2695,12.0,7.5,4.2,15,Heading north toward Central,Phone GPS
+VIC-PH-9843,victim,2025-04-26T19:48:00+05:30,13.0750,80.2710,12.5,8.9,5.6,10,Crossed EVR Salai,Phone GPS
+VIC-PH-9843,victim,2025-04-26T20:05:00+05:30,13.0790,80.2725,13.1,6.1,4.3,8,Crossed Park Town junction,Phone GPS
+VIC-PH-9843,victim,2025-04-26T20:14:00+05:30,13.0820,80.2730,12.8,5.5,3.1,5,Arrived Chennai Central Station,Phone GPS
+VIC-PH-9843,victim,2025-04-26T20:22:00+05:30,13.0825,80.2740,12.3,7.2,1.2,350,Near Platform 4 entrance,Phone GPS
+VIC-PH-9843,victim,2025-04-26T20:35:00+05:30,13.0827,80.2748,12.1,9.5,0.5,280,E-Gate 4 loading area,Phone GPS
+VIC-PH-9843,victim,2025-04-26T20:42:00+05:30,13.0825,80.2750,12.0,12.0,0.0,0,Last known position — E-Gate 4,Phone GPS
+VIC-PH-9843,victim,2025-04-26T20:51:00+05:30,13.0825,80.2750,12.0,50.0,0.0,0,SIGNAL LOST — device offline,Phone GPS
+SUS-PH-4421,suspect,2025-04-26T18:30:00+05:30,13.0900,80.2800,14.2,6.0,0.0,0,S-118 at North Chennai safe house,Phone GPS
+SUS-PH-4421,suspect,2025-04-26T18:50:00+05:30,13.0895,80.2795,13.8,7.5,3.2,210,S-118 minor movement near safe house,Phone GPS
+SUS-PH-4421,suspect,2025-04-26T19:10:00+05:30,13.0870,80.2780,13.5,8.1,12.5,200,S-118 departed southbound,Phone GPS
+SUS-PH-4421,suspect,2025-04-26T19:28:00+05:30,13.0855,80.2770,12.9,6.8,8.3,195,S-118 passing Washermenpet,Phone GPS
+SUS-PH-4421,suspect,2025-04-26T19:45:00+05:30,13.0840,80.2760,12.5,7.2,6.1,190,S-118 near Tollgate,Phone GPS
+SUS-PH-4421,suspect,2025-04-26T20:05:00+05:30,13.0835,80.2755,12.3,9.0,4.5,185,S-118 approaching Park Town,Phone GPS
+SUS-PH-4421,suspect,2025-04-26T20:22:00+05:30,13.0828,80.2748,12.1,6.5,2.1,180,S-118 phone pings Park Town tower,Tower Ping
+SUS-PH-4421,suspect,2025-04-26T20:35:00+05:30,13.0826,80.2750,12.0,8.0,0.8,0,S-118 near E-Gate 4,Phone GPS
+SUS-PH-4421,suspect,2025-04-26T20:42:00+05:30,13.0825,80.2750,12.0,10.0,0.0,0,CO-LOCATION — E-Gate 4 overlap zone,Phone GPS
+SUS-PH-4421,suspect,2025-04-26T20:51:00+05:30,13.0828,80.2752,12.2,15.0,2.5,30,S-118 moving away from scene,Phone GPS
+SUS-PH-4421,suspect,2025-04-26T20:55:00+05:30,13.0840,80.2760,12.8,8.5,18.4,25,S-118 fled north rapidly,Phone GPS
+SUS-PH-4421,suspect,2025-04-26T21:08:00+05:30,13.0860,80.2770,13.2,7.0,15.2,20,S-118 passing Washermenpet north,Phone GPS
+SUS-PH-4421,suspect,2025-04-26T21:25:00+05:30,13.0900,80.2800,14.0,5.5,0.0,0,S-118 returned to safe house,Phone GPS
+SUS-PH-4421,suspect,2025-04-26T21:40:00+05:30,13.0900,80.2800,14.0,6.0,0.0,0,S-118 stationary at safe house,Phone GPS
+TOWER-4492,tower_ping,2025-04-26T20:22:00+05:30,13.0830,80.2745,45.0,300.0,0.0,0,Tower 4492 — both devices detected,Cell Tower
+TOWER-4492,tower_ping,2025-04-26T20:35:00+05:30,13.0830,80.2745,45.0,300.0,0.0,0,Tower 4492 — sustained co-location,Cell Tower
+TOWER-4492,tower_ping,2025-04-26T20:51:00+05:30,13.0830,80.2745,45.0,300.0,0.0,0,Tower 4492 — victim signal lost,Cell Tower
+CRIME-SCENE,crime_scene,2025-04-26T20:42:00+05:30,13.0825,80.2750,12.0,5.0,0.0,0,Crime Scene — E-Gate 4 Platform Area,Physical Evidence
