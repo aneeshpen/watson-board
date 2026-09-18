@@ -30,6 +30,8 @@ router = APIRouter()
 # Guarded so a background retrain cannot swap the model out from under an
 # in-flight prediction, and two retrains cannot run concurrently.
 _model = None
+_conformal_q: float | None = None
+_width_p90: float | None = None
 _model_lock = threading.RLock()
 _training_lock = threading.Lock()
 
@@ -39,16 +41,43 @@ def get_model():
         return _model
 
 
+def get_conformal_q() -> float | None:
+    with _model_lock:
+        return _conformal_q
+
+
+def get_width_p90() -> float | None:
+    with _model_lock:
+        return _width_p90
+
+
+def _unpack(artifact):
+    """
+    Split a persisted artifact into (pipeline, conformal_quantile).
+
+    Training now saves a dict so the interval calibration travels with the
+    model; a bare pipeline from an older run still loads, just without
+    calibrated intervals.
+    """
+    if isinstance(artifact, dict):
+        return artifact.get("pipeline"), artifact.get("conformal_q"), artifact.get("width_p90")
+    return artifact, None, None
+
+
 def load_model() -> None:
     """Load the persisted model; train one first if it is missing or unreadable."""
-    global _model
+    global _model, _conformal_q, _width_p90
     if os.path.exists(MODEL_PATH):
         try:
-            loaded = joblib.load(MODEL_PATH)
+            pipeline, q, wp90 = _unpack(joblib.load(MODEL_PATH))
             with _model_lock:
-                _model = loaded
+                _model, _conformal_q, _width_p90 = pipeline, q, wp90
             reset_explainer()
-            logger.info("PMI model loaded from %s", MODEL_PATH)
+            logger.info(
+                "PMI model loaded from %s (conformal calibration: %s)",
+                MODEL_PATH,
+                "yes" if q is not None else "MISSING - retrain for calibrated intervals",
+            )
             return
         except Exception as exc:
             logger.warning("PMI model load failed (%s); retraining.", exc)
@@ -57,14 +86,14 @@ def load_model() -> None:
 
     try:
         run_training()
-        loaded = joblib.load(MODEL_PATH)
+        pipeline, q, wp90 = _unpack(joblib.load(MODEL_PATH))
         with _model_lock:
-            _model = loaded
+            _model, _conformal_q, _width_p90 = pipeline, q, wp90
         reset_explainer()
         logger.info("PMI model trained and loaded.")
     except Exception as exc:
         with _model_lock:
-            _model = None
+            _model, _conformal_q, _width_p90 = None, None, None
         logger.error("PMI auto-training failed: %s", exc, exc_info=True)
 
 
@@ -89,7 +118,9 @@ def predict_pmi(request: Request, payload: PMIRequest):
 
     try:
         prediction = float(model.predict(pd.DataFrame([row]))[0])
-        low, high, confidence = prediction_interval(model, row)
+        low, high, confidence, unusual = prediction_interval(
+            model, row, get_conformal_q(), get_width_p90()
+        )
         contributions, base_value = explain_prediction(
             model, row, NUMERIC_FEATURES, CATEGORICAL_FEATURES
         )
@@ -100,10 +131,26 @@ def predict_pmi(request: Request, payload: PMIRequest):
             detail="Prediction failed. The input was valid but the model could not score it.",
         ) from None
 
+    metrics = load_metrics() or {}
+    interval_meta = metrics.get("prediction_intervals", {})
+
     return PMIResponse(
         predicted_pmi_hours=round(prediction, 1),
-        confidence_interval_hours=[low, high],
+        prediction_interval_hours=[low, high],
+        interval_method=(
+            "split-conformal" if get_conformal_q() is not None else "forest-spread (uncalibrated)"
+        ),
+        interval_coverage=interval_meta.get("target_coverage"),
+        empirical_coverage=interval_meta.get("empirical_coverage"),
         confidence_score=confidence,
+        unusual_combination=unusual,
+        combination_note=(
+            "These findings rarely occur together in the training data, so this "
+            "estimate is weakly supported - treat the interval, not the point "
+            "estimate, as the result."
+            if unusual
+            else None
+        ),
         contributions=contributions,
         baseline_hours=base_value,
         message="Prediction successful.",

@@ -64,6 +64,16 @@ CSV_PATH = os.path.join(BASE_DIR, "..", "dataset", "forensic_autopsy_3000.csv")
 
 RANDOM_STATE = 42
 
+# Chosen by RandomizedSearchCV over 40 configurations with 5-fold CV; see
+# ml_experiments.py. Re-run that script to reproduce or revisit the choice.
+RF_PARAMS = {
+    "n_estimators": 200,
+    "max_depth": 10,
+    "min_samples_leaf": 2,
+    "min_samples_split": 2,
+    "max_features": 0.5,
+}
+
 # ── Feature definitions ──────────────────────────────────────────────────────
 # "Vitreous Potassium" is deliberately ABSENT: it anchors the label, so keeping
 # it as an input would reintroduce the leakage this rewrite exists to remove.
@@ -235,9 +245,15 @@ def build_pipeline() -> Pipeline:
             ("preprocessor", preprocessor),
             (
                 "regressor",
+                # Hyperparameters from the RandomizedSearchCV in ml_experiments.py
+                # (40 configs, 5-fold CV): improved CV MAE 0.762 -> 0.741 h while
+                # using fewer, shallower trees than the hand-picked defaults.
                 RandomForestRegressor(
-                    n_estimators=300,
-                    min_samples_leaf=2,
+                    n_estimators=RF_PARAMS["n_estimators"],
+                    max_depth=RF_PARAMS["max_depth"],
+                    min_samples_leaf=RF_PARAMS["min_samples_leaf"],
+                    min_samples_split=RF_PARAMS["min_samples_split"],
+                    max_features=RF_PARAMS["max_features"],
                     random_state=RANDOM_STATE,
                     n_jobs=-1,
                 ),
@@ -246,8 +262,95 @@ def build_pipeline() -> Pipeline:
     )
 
 
+# ── Uncertainty: normalised split-conformal prediction ───────────────────────
+
+CONFORMAL_ALPHA = 0.10  # -> 90% prediction intervals
+_SIGMA_FLOOR = 0.05  # guards against division by a zero forest spread
+
+
+def tree_spread(pipeline: Pipeline, X: pd.DataFrame) -> np.ndarray:
+    """Per-sample standard deviation across the forest's trees."""
+    encoded = pipeline.named_steps["preprocessor"].transform(X)
+    forest = pipeline.named_steps["regressor"]
+    per_tree = np.stack([tree.predict(encoded) for tree in forest.estimators_])
+    return per_tree.std(axis=0)
+
+
+def fit_conformal(
+    pipeline: Pipeline, X_cal: pd.DataFrame, y_cal: pd.Series, alpha: float = CONFORMAL_ALPHA
+) -> float:
+    """
+    Calibrate normalised split-conformal intervals on held-out data.
+
+    The previous interval was the 10th-90th percentile of the tree predictions.
+    That is a measure of how much the trees disagree, which is not the same
+    thing as a prediction interval and carries no coverage guarantee — the
+    forest can be confidently wrong.
+
+    Split conformal fixes that: on a calibration set never used for fitting,
+    score each point by its residual normalised by the forest spread,
+
+        s_i = |y_i - yhat_i| / (sigma_i + floor)
+
+    and take the (1-alpha) quantile. Under exchangeability alone — no
+    distributional assumption — the interval yhat +/- q * (sigma + floor) covers
+    the truth with probability at least 1-alpha. Normalising by sigma keeps the
+    guarantee while letting the interval widen on cases the forest finds hard.
+    """
+    preds = pipeline.predict(X_cal)
+    sigma = tree_spread(pipeline, X_cal) + _SIGMA_FLOOR
+    scores = np.abs(np.asarray(y_cal) - preds) / sigma
+
+    n = len(scores)
+    # Finite-sample corrected quantile level.
+    level = min(1.0, np.ceil((n + 1) * (1 - alpha)) / n)
+    return float(np.quantile(scores, level, method="higher"))
+
+
+def conformal_interval(
+    pipeline: Pipeline, X: pd.DataFrame, q: float
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return (prediction, low, high) using a calibrated conformal quantile."""
+    preds = pipeline.predict(X)
+    half_width = q * (tree_spread(pipeline, X) + _SIGMA_FLOOR)
+    return preds, np.maximum(preds - half_width, 0.0), preds + half_width
+
+
+def residual_diagnostics(y_true, y_pred):
+    """
+    Error broken down by PMI range.
+
+    A single headline MAE hides where a model is unreliable. For a forensic
+    estimate the early hours matter most, so the error there is reported
+    separately rather than averaged away.
+    """
+    bands = [(0, 2), (2, 6), (6, 12), (12, 24), (24, np.inf)]
+    rows = []
+    for low, high in bands:
+        mask = (y_true >= low) & (y_true < high)
+        n = int(mask.sum())
+        if n == 0:
+            continue
+        residuals = y_pred[mask] - y_true[mask]
+        rows.append(
+            {
+                "range_hours": f"{low}-{'inf' if high == np.inf else high}",
+                "n": n,
+                "mae_hours": round(float(np.abs(residuals).mean()), 3),
+                "bias_hours": round(float(residuals.mean()), 3),
+            }
+        )
+    return rows
+
+
 def train(csv_path: str = CSV_PATH, persist: bool = True) -> dict[str, Any]:
-    """Train the PMI model and return held-out metrics."""
+    """
+    Train the PMI model, calibrate its prediction intervals, and score it.
+
+    The split is three-way: fit on train, calibrate conformal intervals on a
+    held-out calibration slice, and report every number on a test set that
+    neither step has seen.
+    """
     print(f"Loading dataset from {csv_path} ...")
     df = prepare_frame(pd.read_csv(csv_path))
 
@@ -255,19 +358,42 @@ def train(csv_path: str = CSV_PATH, persist: bool = True) -> dict[str, Any]:
     y = build_target(df)
     baseline = henssge_baseline(df)
 
-    X_train, X_test, y_train, y_test, baseline_train, baseline_test = train_test_split(
-        X, y, baseline, test_size=0.2, random_state=RANDOM_STATE
+    # 60 / 20 / 20 -- train / conformal calibration / test.
+    X_fit, X_tmp, y_fit, y_tmp, base_fit, base_tmp = train_test_split(
+        X, y, baseline, test_size=0.4, random_state=RANDOM_STATE
+    )
+    X_cal, X_test, y_cal, y_test, _, baseline_test = train_test_split(
+        X_tmp, y_tmp, base_tmp, test_size=0.5, random_state=RANDOM_STATE
     )
 
     pipeline = build_pipeline()
-    print(f"Training on {len(X_train)} samples (holding out {len(X_test)}) ...")
-    pipeline.fit(X_train, y_train)
+    print(
+        f"Training on {len(X_fit)} samples "
+        f"(calibration {len(X_cal)}, test {len(X_test)}) ..."
+    )
+    pipeline.fit(X_fit, y_fit)
 
+    # -- Point accuracy on the test set --------------------------------------
     preds = pipeline.predict(X_test)
     mae = float(mean_absolute_error(y_test, preds))
     rmse = float(np.sqrt(mean_squared_error(y_test, preds)))
     r2 = float(r2_score(y_test, preds))
 
+    # -- Conformal calibration, then verify coverage on the test set ---------
+    print("Calibrating conformal prediction intervals ...")
+    q = fit_conformal(pipeline, X_cal, y_cal)
+    _, low, high = conformal_interval(pipeline, X_test, q)
+    covered = (np.asarray(y_test) >= low) & (np.asarray(y_test) <= high)
+    empirical_coverage = float(covered.mean())
+    widths = high - low
+    mean_width = float(widths.mean())
+    median_width = float(np.median(widths))
+    # Interval width is a usable novelty signal: the forest disagrees most on
+    # feature combinations it rarely saw. The 90th percentile of test-set widths
+    # becomes the threshold for flagging an input as an unusual combination.
+    width_p90 = float(np.percentile(widths, 90))
+
+    # -- Cross-validation on the full dataset --------------------------------
     print("Running 5-fold cross-validation ...")
     cv = KFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
     cv_scores = cross_val_score(
@@ -275,21 +401,21 @@ def train(csv_path: str = CSV_PATH, persist: bool = True) -> dict[str, Any]:
     )
     cv_mae = [float(-s) for s in cv_scores]
 
-    # Non-ML control: classical body-cooling physics on the same hold-out rows.
-    # The raw Henssge hours are on a different scale to this dataset's label, so
-    # it gets a 2-parameter linear calibration fitted on TRAIN ONLY — otherwise
-    # the comparison would be rigged in the ML model's favour.
-    calib = LinearRegression().fit(baseline_train.to_numpy().reshape(-1, 1), y_train)
+    # -- Baselines on the same test rows -------------------------------------
+    calib = LinearRegression().fit(base_fit.to_numpy().reshape(-1, 1), y_fit)
     baseline_pred = calib.predict(baseline_test.to_numpy().reshape(-1, 1))
     baseline_mae = float(mean_absolute_error(y_test, baseline_pred))
     baseline_r2 = float(r2_score(y_test, baseline_pred))
-    # Mean-predictor control — the floor any model must beat.
-    naive_mae = float(mean_absolute_error(y_test, np.full_like(y_test, y_train.mean())))
+    naive_mae = float(
+        mean_absolute_error(y_test, np.full_like(np.asarray(y_test), y_fit.mean()))
+    )
 
     metrics: dict[str, Any] = {
+        "model": "RandomForestRegressor",
+        "hyperparameters": RF_PARAMS,
+        "hyperparameter_search": "RandomizedSearchCV, 40 configs, 5-fold CV (ml_experiments.py)",
         "n_samples": int(len(df)),
-        "n_train": int(len(X_train)),
-        "n_test": int(len(X_test)),
+        "split": {"train": len(X_fit), "calibration": len(X_cal), "test": len(X_test)},
         "features": FEATURES,
         "excluded_from_features": ["Vitreous Potassium"],
         "target": "Lange vitreous-potassium PMI regression (proxy label; K+ excluded from features)",
@@ -297,6 +423,25 @@ def train(csv_path: str = CSV_PATH, persist: bool = True) -> dict[str, Any]:
             "mae_hours": round(mae, 3),
             "rmse_hours": round(rmse, 3),
             "r2": round(r2, 4),
+        },
+        "cross_validation": {
+            "folds": 5,
+            "mae_hours_mean": round(float(np.mean(cv_mae)), 3),
+            "mae_hours_std": round(float(np.std(cv_mae)), 3),
+            "mae_hours_per_fold": [round(v, 3) for v in cv_mae],
+        },
+        "prediction_intervals": {
+            "method": "normalised split-conformal (residual / forest spread)",
+            "target_coverage": round(1 - CONFORMAL_ALPHA, 3),
+            "empirical_coverage": round(empirical_coverage, 4),
+            "conformal_quantile": round(q, 4),
+            "mean_width_hours": round(mean_width, 3),
+            "median_width_hours": round(median_width, 3),
+            "width_p90_hours": round(width_p90, 3),
+            "note": (
+                "Coverage is measured on the test set, which the calibration step "
+                "never saw. Distribution-free under exchangeability."
+            ),
         },
         "baselines": {
             "henssge_cooling_calibrated": {
@@ -310,6 +455,16 @@ def train(csv_path: str = CSV_PATH, persist: bool = True) -> dict[str, Any]:
                 "predict_train_mean is the trivial floor."
             ),
         },
+        "error_by_range": residual_diagnostics(np.asarray(y_test), preds),
+        "model_selection": {
+            "note": (
+                "ml_experiments.py compared 4 feature representations x 4 model "
+                "families under identical 5-fold CV. One-hot + RandomForest won; "
+                "ordinal encoding, physics-derived features and feature pruning "
+                "were each tested and did NOT improve on it, so they were not "
+                "adopted."
+            ),
+        },
         "caveats": [
             "No ground-truth PMI exists in this dataset; the label is the Lange "
             "vitreous-potassium regression used as a proxy standard.",
@@ -319,23 +474,21 @@ def train(csv_path: str = CSV_PATH, persist: bool = True) -> dict[str, Any]:
             "Investigative support only - not a substitute for a forensic "
             "pathologist's determination.",
         ],
-        "cross_validation": {
-            "folds": 5,
-            "mae_hours_mean": round(float(np.mean(cv_mae)), 3),
-            "mae_hours_std": round(float(np.std(cv_mae)), 3),
-            "mae_hours_per_fold": [round(v, 3) for v in cv_mae],
-        },
-        "target_stats": {
-            "mean_hours": round(float(y.mean()), 2),
-            "std_hours": round(float(y.std()), 2),
-            "min_hours": round(float(y.min()), 2),
-            "max_hours": round(float(y.max()), 2),
-        },
     }
 
     if persist:
         os.makedirs(MODEL_DIR, exist_ok=True)
-        joblib.dump(pipeline, MODEL_PATH)
+        # The conformal quantile travels with the model: serving an interval
+        # needs both, and a mismatched pair would silently mis-calibrate.
+        joblib.dump(
+            {
+                "pipeline": pipeline,
+                "conformal_q": q,
+                "alpha": CONFORMAL_ALPHA,
+                "width_p90": width_p90,
+            },
+            MODEL_PATH,
+        )
         with open(METRICS_PATH, "w", encoding="utf-8") as fh:
             json.dump(metrics, fh, indent=2)
         print(f"Model saved to  {MODEL_PATH}")
@@ -344,6 +497,8 @@ def train(csv_path: str = CSV_PATH, persist: bool = True) -> dict[str, Any]:
     print(
         f"Hold-out : MAE {mae:.2f} h | RMSE {rmse:.2f} h | R2 {r2:.3f}\n"
         f"5-fold CV: MAE {np.mean(cv_mae):.2f} +/- {np.std(cv_mae):.2f} h\n"
+        f"Intervals: {empirical_coverage:.1%} empirical coverage "
+        f"(target {1 - CONFORMAL_ALPHA:.0%}), mean width {mean_width:.2f} h\n"
         f"Baselines: Henssge-only MAE {baseline_mae:.2f} h (R2 {baseline_r2:.3f}) | "
         f"mean-predictor MAE {naive_mae:.2f} h"
     )

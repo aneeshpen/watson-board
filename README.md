@@ -78,7 +78,7 @@ A Python-based REST API built with FastAPI, serving three primary intelligence m
 
 ## PMI Prediction Engine (Deep Dive)
 
-**Files:** `backend/train_model.py`, `backend/routers/pmi_router.py`, `backend/services/pmi_explain.py`
+**Files:** `backend/train_model.py`, `backend/ml_experiments.py`, `backend/routers/pmi_router.py`, `backend/services/pmi_explain.py`
 
 ### The problem with the obvious approach
 
@@ -114,33 +114,134 @@ putrefaction. The signal is real rather than circular — Algor Mortis correlate
 | Stage             | Detail                                                                                                                                        |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Preprocessing** | `StandardScaler` on numerics; `OneHotEncoder(handle_unknown="error")` on categoricals, with an explicit vocabulary shared with the API schema |
-| **Regressor**     | `RandomForestRegressor(n_estimators=300, min_samples_leaf=2)`                                                                                 |
-| **Validation**    | 80/20 hold-out split **plus** 5-fold cross-validation                                                                                         |
+| **Regressor**     | `RandomForestRegressor(n_estimators=200, max_depth=10, max_features=0.5)` — tuned by `RandomizedSearchCV`                                     |
+| **Validation**    | 60/20/20 train / conformal-calibration / test split **plus** 5-fold cross-validation                                                          |
 | **Explanations**  | **TreeSHAP per prediction** — contributions sum to `prediction - base_value` for that specific input                                          |
-| **Uncertainty**   | 10th-90th percentile across the 300 trees, returned as a prediction interval                                                                  |
+| **Uncertainty**   | **Normalised split-conformal intervals** — distribution-free coverage, verified at 89.7% against a 90% target                                 |
+
+### Model selection
+
+The production configuration was chosen by experiment, not assertion.
+`backend/ml_experiments.py` compares **4 feature representations x 4 model
+families** under identical 5-fold CV, then ablates feature groups on the winner.
+Re-run it with `python backend/ml_experiments.py`.
+
+| 5-fold CV MAE (h)    | one-hot   | ordinal | +engineered | pruned |
+| -------------------- | --------- | ------- | ----------- | ------ |
+| Ridge                | 0.930     | 1.265   | 1.268       | 1.266  |
+| **RandomForest**     | **0.762** | 0.763   | 0.766       | 0.767  |
+| ExtraTrees           | 0.768     | 0.766   | 0.769       | 0.780  |
+| HistGradientBoosting | 0.795     | 0.795   | 0.796       | 0.773  |
+
+Three plausible-sounding ideas were tested and **rejected because they did not
+help**: target-ordered ordinal encoding of the decomposition stages, physics-derived
+features (Newton-cooling hours, temperature deficit, BMI), and pruning the
+zero-signal demographics. Trees can already recover ordering from one-hot splits
+and are invariant to the monotone transforms, so none of it added information.
+They are left in the experiment script as documented negative results.
+
+Hyperparameters then came from `RandomizedSearchCV` (40 configs, 5-fold CV),
+which improved CV MAE **0.762 -> 0.741 h** using _fewer, shallower_ trees.
+
+### Which findings actually carry the signal
+
+Ablation on the winning model — drop one group, measure the damage:
+
+| Feature group removed       | CV MAE | Δ          |
+| --------------------------- | ------ | ---------- |
+| _(none — full model)_       | 0.762  | —          |
+| Putrefaction + Putre_level  | 1.328  | **+0.566** |
+| Entomology                  | 0.931  | +0.169     |
+| Livor Mortis                | 0.837  | +0.075     |
+| Algor-derived (temperature) | 0.823  | +0.061     |
+| Rigor Mortis                | 0.784  | +0.022     |
+| Stomach Contents            | 0.766  | +0.004     |
+
+Putrefaction dominates. Notably, **Rigor Mortis has the highest univariate
+correlation with the target (ρ = +0.91) yet costs almost nothing to remove** —
+it is largely redundant once putrefaction is known. Correlation ranking and
+ablation ranking disagree, which is exactly why the ablation is worth running.
 
 ### Measured performance
 
 Reproduce with `python backend/train_model.py`; the numbers are written to
 `models/pmi_metrics.json` and served at `GET /api/pmi/model-info`.
+The split is three-way — 60% fit / 20% conformal calibration / 20% test — and
+every number below is on the test set, which neither the fit nor the calibration
+step ever saw.
 
 | Model                                                      | MAE (hours) | R²        |
 | ---------------------------------------------------------- | ----------- | --------- |
-| Predict-train-mean (trivial floor)                         | 4.90        | —         |
-| Henssge body-cooling physics, linearly calibrated on train | 3.11        | 0.500     |
-| **Random Forest (this model)**                             | **0.76**    | **0.963** |
+| Predict-train-mean (trivial floor)                         | 4.91        | —         |
+| Henssge body-cooling physics, linearly calibrated on train | 3.05        | 0.527     |
+| **Random Forest (this model)**                             | **0.80**    | **0.960** |
 
-5-fold CV MAE: **0.76 ± 0.02 h**.
+5-fold CV MAE: **0.74 ± 0.02 h**.
 
 The physics baseline is included deliberately: it is what the ML has to beat to
 justify existing. It is calibrated on the training split only, so the comparison
 is not rigged.
 
+**Error by PMI range** — a single headline MAE hides where a model is weak:
+
+| PMI range (h) | n   | MAE (h)  | bias (h) |
+| ------------- | --- | -------- | -------- |
+| 0–2           | 133 | **0.03** | +0.00    |
+| 2–6           | 122 | 0.43     | +0.28    |
+| 6–12          | 175 | 1.19     | +0.20    |
+| 12–24         | 170 | 1.26     | −0.13    |
+
+Accuracy is highest in the first hours, which is where forensic precision
+matters most, and degrades as the interval lengthens.
+
+### Calibrated uncertainty (conformal prediction)
+
+The point estimate is not the result — the interval is. Intervals use
+**normalised split-conformal prediction**: residuals on a held-out calibration
+split, normalised by the forest's own spread, give a quantile `q` such that
+
+```
+interval = ŷ ± q · (σ_forest + floor)
+```
+
+covers the truth with probability ≥ 1−α under exchangeability alone, with **no
+distributional assumption**.
+
+|                                   |           |
+| --------------------------------- | --------- |
+| Target coverage                   | 90%       |
+| **Empirical coverage (test set)** | **89.7%** |
+| Mean interval width               | 3.04 h    |
+
+This replaced the previous interval, which was the 10th–90th percentile of the
+forest's predictions — a measure of how much the trees _disagree_, which is not
+a prediction interval and carries no guarantee. A forest can agree and still be
+wrong.
+
+### Implausible-combination detection
+
+Because the interval is normalised by forest spread, its width doubles as a
+novelty signal, and the dataset's findings are tightly coupled — `Putre_level =
+"None"` never co-occurs with `Rigor Mortis = "Developing"` in **any** of the
+3,000 records. An interval wider than the 90th percentile of test-set widths
+therefore means _the model has effectively never seen this combination of
+findings_, and the response says so via `unusual_combination`.
+
+Validated on 60 randomly sampled real records: **8% flagged** (the p90 threshold
+implies ~10%), mean width **2.93 h**, interval coverage **93%**. Physiologically
+impossible combinations, by contrast, produce 14–18 h intervals and are flagged
+every time.
+
+For a forensic tool this is a feature, not a diagnostic: internally inconsistent
+findings are exactly what an investigator wants surfaced rather than buried under
+a confident-looking number.
+
 ### Honest caveats
 
 - The label is a **proxy standard**, not a forensically established PMI.
-- The dataset's forensic columns are **synthetic and tightly coupled**, so
-  R² = 0.963 is optimistic and should **not** be read as real-world accuracy.
+- The dataset's forensic columns are **synthetic and tightly coupled** — that
+  coupling is precisely what the implausibility detector exploits, and it is also
+  why R² = 0.960 is optimistic and should **not** be read as real-world accuracy.
   The gap against the Henssge and mean baselines is the meaningful result.
 - Investigative triage support only — not a substitute for a forensic
   pathologist's determination.
@@ -260,7 +361,8 @@ Watson-Board/
 │   ├── security.py               # API-key auth dependency + rate limiter
 │   ├── schemas.py                # Pydantic models (enum-validated PMI request)
 │   ├── cctv_schemas.py           # Pydantic models for CCTV analysis
-│   ├── train_model.py            # ML model training pipeline (Random Forest)
+│   ├── train_model.py            # Training, conformal calibration, metrics
+│   ├── ml_experiments.py         # Model-selection study (reproduces the tables above)
 │   ├── requirements.txt          # Python dependencies
 │   ├── chroma_data/              # Persistent ChromaDB vector storage
 │   ├── routers/

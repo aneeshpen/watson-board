@@ -122,10 +122,31 @@ class FeatureContribution(BaseModel):
 
 class PMIResponse(BaseModel):
     predicted_pmi_hours: float
-    confidence_interval_hours: list[float] = Field(
-        ..., description="[low, high] from the spread across forest trees"
+    prediction_interval_hours: list[float] = Field(
+        ...,
+        description=(
+            "[low, high] calibrated split-conformal interval. Unlike the forest "
+            "spread it replaced, this carries a distribution-free coverage "
+            "guarantee verified on held-out data."
+        ),
+    )
+    interval_method: str = Field(..., description="How the interval was derived")
+    interval_coverage: float | None = Field(
+        default=None, description="Target coverage level, e.g. 0.9"
+    )
+    empirical_coverage: float | None = Field(
+        default=None, description="Coverage actually measured on the test set"
     )
     confidence_score: float
+    unusual_combination: bool = Field(
+        default=False,
+        description=(
+            "True when the interval is wider than the 90th percentile seen on the "
+            "test set, i.e. this combination of findings is one the model has "
+            "effectively not seen."
+        ),
+    )
+    combination_note: str | None = None
     contributions: list[FeatureContribution] = Field(
         ...,
         description=(

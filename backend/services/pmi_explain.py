@@ -13,6 +13,7 @@ its inputs: contributions sum to (prediction - base_value) for that one row.
 from __future__ import annotations
 
 import logging
+import math
 import threading
 from typing import Any
 
@@ -121,35 +122,52 @@ def explain_prediction(
         return [], 0.0
 
 
-def prediction_interval(pipeline, row: dict[str, Any]) -> tuple[float, float, float]:
+def prediction_interval(
+    pipeline,
+    row: dict[str, Any],
+    conformal_q: float | None = None,
+    width_p90: float | None = None,
+) -> tuple[float, float, float, bool]:
     """
-    Spread of the individual trees' predictions.
+    Calibrated prediction interval for a single row.
 
-    Returns (low, high, confidence_score). The interval is the 10th-90th
-    percentile across the forest; confidence is derived from the coefficient of
-    variation, so a tight forest consensus scores high.
+    Returns (low, high, confidence_score, is_unusual_combination).
+
+    This used to return the 10th-90th percentile of the forest's own
+    predictions. That measures how much the trees disagree, which is not a
+    prediction interval and carries no coverage guarantee — a forest can agree
+    and still be wrong. It now uses the split-conformal quantile calibrated at
+    training time (see `fit_conformal` in train_model.py), which has a
+    distribution-free coverage guarantee verified on held-out data.
+
+    Because the interval is normalised by forest spread, its width doubles as a
+    novelty signal. The dataset's findings are tightly coupled — `Putre_level =
+    "None"` never co-occurs with `Rigor Mortis = "Developing"`, for instance —
+    so an unusually wide interval means the combination of findings is one the
+    model has effectively never seen. For a forensic tool that is worth saying
+    out loud rather than hiding behind a point estimate.
     """
+    from train_model import conformal_interval, tree_spread
+
     frame = pd.DataFrame([row])
-    transformed = pipeline.named_steps["preprocessor"].transform(frame)
-    forest = pipeline.named_steps["regressor"]
 
-    # Vectorised over trees — the old code looped in Python per request.
-    tree_preds = np.array([est.predict(transformed)[0] for est in forest.estimators_])
+    if conformal_q is None:
+        # No calibration available: fall back to forest spread and report a
+        # deliberately conservative confidence.
+        spread = float(tree_spread(pipeline, frame)[0])
+        pred = float(pipeline.predict(frame)[0])
+        return round(max(pred - 2 * spread, 0.0), 2), round(pred + 2 * spread, 2), 50.0, False
 
-    low = float(np.percentile(tree_preds, 10))
-    high = float(np.percentile(tree_preds, 90))
-    mean = float(np.mean(tree_preds))
-    std = float(np.std(tree_preds))
+    _, low, high = conformal_interval(pipeline, frame, conformal_q)
+    low_v, high_v = float(low[0]), float(high[0])
+    width = high_v - low_v
 
-    # Confidence from forest agreement. Using only the coefficient of variation
-    # mis-scores predictions near zero (a unanimous 0.0 h scored 50%), so fall
-    # back to absolute spread when the mean is too small for a ratio to mean
-    # anything. TYPICAL_PMI_SCALE is roughly the label's standard deviation.
-    TYPICAL_PMI_SCALE = 5.0
-    if mean > 0.5:
-        dispersion = std / mean
-    else:
-        dispersion = std / TYPICAL_PMI_SCALE
-    confidence = max(0.0, min(100.0, (1.0 - dispersion) * 100.0))
+    # Exponential decay rather than a linear ramp: a linear score pinned itself
+    # to 0 for every interval wider than ~11 h, which is not a rare case.
+    # TARGET_SPREAD_HOURS is roughly the standard deviation of the PMI label.
+    TARGET_SPREAD_HOURS = 5.6
+    confidence = 100.0 * math.exp(-width / (2 * TARGET_SPREAD_HOURS))
 
-    return round(low, 2), round(high, 2), round(confidence, 1)
+    unusual = bool(width_p90 is not None and width > width_p90)
+
+    return round(low_v, 2), round(high_v, 2), round(confidence, 1), unusual
