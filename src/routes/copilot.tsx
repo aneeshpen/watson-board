@@ -63,14 +63,19 @@ function CopilotRoutePage() {
         <div className="relative flex min-h-0 flex-1 flex-col border-border/30 lg:border-r lg:pr-4">
           <div className="shrink-0 border-b border-border/25 px-4 py-4 lg:border-b-0 lg:px-5 lg:pb-3 lg:pt-5">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg font-semibold tracking-tight text-gradient">Copilot session</h1>
+              <h1 className="text-lg font-semibold tracking-tight text-gradient">
+                Copilot session
+              </h1>
               <Badge variant="outline" className="border-primary/30 font-mono text-[10px]">
                 C-2041
               </Badge>
-              <span className="text-xs text-muted-foreground">Investigation briefing · evidence corpus</span>
+              <span className="text-xs text-muted-foreground">
+                Investigation briefing · evidence corpus
+              </span>
             </div>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              Chat runs in-page. Use the rail for one-click prompts; elsewhere in the app the floating assistant stays available on case views.
+              Chat runs in-page. Use the rail for one-click prompts; elsewhere in the app the
+              floating assistant stays available on case views.
             </p>
           </div>
           <div className="min-h-0 flex-1 px-4 pb-4 lg:px-5 lg:pb-5">
@@ -81,8 +86,12 @@ function CopilotRoutePage() {
         {/* Briefing rail */}
         <aside className="flex w-full shrink-0 flex-col gap-4 border-t border-border/30 bg-secondary/10 px-4 py-5 lg:w-[300px] lg:border-t-0 lg:bg-transparent lg:pl-5 lg:pr-5">
           <div>
-            <div className="text-[11px] uppercase tracking-widest text-muted-foreground">Briefing rail</div>
-            <p className="mt-1 text-sm text-muted-foreground">Launch prompts into the active session.</p>
+            <div className="text-[11px] uppercase tracking-widest text-muted-foreground">
+              Briefing rail
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Launch prompts into the active session.
+            </p>
           </div>
 
           <div className="flex flex-col gap-2">
@@ -146,7 +155,10 @@ export const Route = createFileRoute("/copilot")({
     q: typeof raw.q === "string" && raw.q.trim() ? raw.q.trim() : undefined,
   }),
   head: () => ({
-    meta: [{ title: "AI Copilot — Watson-Board" }, { name: "description", content: "Holographic investigation assistant." }],
+    meta: [
+      { title: "AI Copilot — Watson-Board" },
+      { name: "description", content: "Holographic investigation assistant." },
+    ],
   }),
   component: CopilotRoutePage,
 });

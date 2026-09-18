@@ -9,11 +9,11 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "typecheck": "tsc --noEmit",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
-    "@dnd-kit/core": "^6.3.1",
-    "@dnd-kit/sortable": "^10.0.0",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -49,10 +49,8 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
-    "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.38.0",
-    "gsap": "^3.15.0",
     "input-otp": "^1.4.2",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.575.0",
@@ -61,7 +59,6 @@
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.71.2",
     "react-is": "^19.2.6",
-    "react-leaflet": "^5.0.0",
     "react-resizable-panels": "^4.6.5",
     "reactflow": "^11.11.4",
     "recharts": "^3.8.1",
@@ -70,13 +67,10 @@
     "tailwindcss": "^4.2.1",
     "tw-animate-css": "^1.3.4",
     "vaul": "^1.1.2",
-    "vite-tsconfig-paths": "^6.0.2",
-    "zod": "^3.24.2",
-    "zustand": "^5.0.13"
+    "vite-tsconfig-paths": "^6.0.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
-    "@lovable.dev/vite-tanstack-config": "^1.5.1",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",
@@ -92,5 +86,8 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^7.3.1"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }

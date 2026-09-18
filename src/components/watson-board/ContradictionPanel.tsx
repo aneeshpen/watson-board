@@ -3,8 +3,8 @@ import { AlertTriangle } from "lucide-react";
 
 const sev: Record<string, string> = {
   critical: "border-danger/60 bg-danger/15 text-danger animate-pulse-ring-danger",
-  high:     "border-danger/40 bg-danger/10 text-danger",
-  medium:   "border-warn/40 bg-warn/10 text-warn",
+  high: "border-danger/40 bg-danger/10 text-danger",
+  medium: "border-warn/40 bg-warn/10 text-warn",
 };
 
 export function ContradictionPanel() {
@@ -15,7 +15,9 @@ export function ContradictionPanel() {
       </div>
       {contradictions.map((c) => (
         <div key={c.id} className={`rounded-lg border px-3 py-2 text-xs ${sev[c.severity]}`}>
-          <div className="font-mono text-[10px] opacity-70">{c.id} · {c.severity.toUpperCase()}</div>
+          <div className="font-mono text-[10px] opacity-70">
+            {c.id} · {c.severity.toUpperCase()}
+          </div>
           <div className="mt-0.5 text-foreground/90">{c.text}</div>
         </div>
       ))}

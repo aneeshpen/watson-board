@@ -1,10 +1,4 @@
-import {
-  autopsy,
-  caseGraph,
-  cases,
-  districts,
-  heatmapZones,
-} from "@/data/data";
+import { autopsy, caseGraph, cases, districts, heatmapZones } from "@/data/data";
 
 export type CommandSearchHit = {
   id: string;
@@ -56,12 +50,20 @@ export function searchCommandBar(raw: string): CommandSearchHit[] {
     }
   }
 
-
-
   for (const n of caseGraph.nodes) {
     if (
       matches(
-        hay(n.id, n.label, n.sublabel, n.meta, n.type, n.zone, n.aiInsight, n.autopsyStatus, n.causeOfDeath),
+        hay(
+          n.id,
+          n.label,
+          n.sublabel,
+          n.meta,
+          n.type,
+          n.zone,
+          n.aiInsight,
+          n.autopsyStatus,
+          n.causeOfDeath,
+        ),
       )
     ) {
       push({
@@ -76,7 +78,14 @@ export function searchCommandBar(raw: string): CommandSearchHit[] {
 
   if (
     matches(
-      hay(autopsy.caseId, autopsy.subject, autopsy.causeOfDeath, autopsy.todRange, "autopsy", "A-2041"),
+      hay(
+        autopsy.caseId,
+        autopsy.subject,
+        autopsy.causeOfDeath,
+        autopsy.todRange,
+        "autopsy",
+        "A-2041",
+      ),
     )
   ) {
     push({
@@ -114,14 +123,34 @@ export function searchCommandBar(raw: string): CommandSearchHit[] {
 
   if (q.length >= 2) {
     const nav: { keys: string[]; title: string; subtitle: string; to: string }[] = [
-      { keys: ["copilot", "assistant"], title: "AI Copilot", subtitle: "Briefing session", to: "/copilot" },
-      { keys: ["timeline", "replay"], title: "Timeline Replay", subtitle: "Event reconstruction", to: "/timeline" },
+      {
+        keys: ["copilot", "assistant"],
+        title: "AI Copilot",
+        subtitle: "Briefing session",
+        to: "/copilot",
+      },
+      {
+        keys: ["timeline", "replay"],
+        title: "Timeline Replay",
+        subtitle: "Event reconstruction",
+        to: "/timeline",
+      },
       { keys: ["report"], title: "Reports", subtitle: "Intelligence dashboard", to: "/reports" },
       { keys: ["alert"], title: "Alerts", subtitle: "Signal queue", to: "/alerts" },
       { keys: ["setting"], title: "Settings", subtitle: "Workspace", to: "/settings" },
-      { keys: ["heatmap", "heat map"], title: "Risk heatmaps", subtitle: "District risk", to: "/heatmap" },
+      {
+        keys: ["heatmap", "heat map"],
+        title: "Risk heatmaps",
+        subtitle: "District risk",
+        to: "/heatmap",
+      },
       { keys: ["cases"], title: "All cases", subtitle: "Registry", to: "/cases" },
-      { keys: ["graph", "investigation"], title: "Investigation graph", subtitle: "C-2041 network view", to: "/cases/C-2041" },
+      {
+        keys: ["graph", "investigation"],
+        title: "Investigation graph",
+        subtitle: "C-2041 network view",
+        to: "/cases/C-2041",
+      },
     ];
     for (const n of nav) {
       if (n.keys.some((k) => q.includes(k))) {

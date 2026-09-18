@@ -1,13 +1,35 @@
+"""
+Case fixture data (timeline + movement) for the demo case file.
+
+`generate_timeline` / `generate_movement` previously declared a `case_id`
+parameter and then ignored it entirely, returning the same hardcoded C-2041
+data for every id — `/api/cases/ANYTHING/timeline` answered as if that case
+existed. They now honour the id and return None for cases they do not have,
+so the router can raise a real 404.
+"""
+
 from datetime import datetime, timedelta
 
-_BASE = datetime.now().replace(hour=18, minute=0, second=0, microsecond=0)
+# Fixed reference date so fixtures are deterministic across runs and tests.
+# Previously this was datetime.now(), frozen at import time.
+_BASE = datetime(2026, 1, 1, 18, 0, 0)
+
+# Cases this module actually holds evidence for.
+KNOWN_CASES = {"C-2041"}
+
 
 def _t(h=0, m=0):
     return (_BASE + timedelta(hours=h, minutes=m)).strftime("%H:%M")
 
 
+def case_exists(case_id: str) -> bool:
+    return case_id.strip().upper() in KNOWN_CASES
+
+
 def generate_timeline(case_id: str):
-    """Full 18-step investigation roadmap for case C-2041."""
+    """18-step investigation roadmap. Returns None for an unknown case id."""
+    if not case_exists(case_id):
+        return None
     return [
         {
             "id": 1,
@@ -193,7 +215,9 @@ def generate_timeline(case_id: str):
 
 
 def generate_movement(case_id: str):
-    """GPS routes for victim and suspects — 9 anchor points."""
+    """GPS anchor points for victim and suspects. None for an unknown case id."""
+    if not case_exists(case_id):
+        return None
     return [
         {"lat": 13.0560, "lng": 80.2620, "label": "Victim's Residence", "time": "18:10", "type": "victim"},
         {"lat": 13.0650, "lng": 80.2650, "label": "S-118 Last Known Location", "time": "19:00", "type": "suspect"},

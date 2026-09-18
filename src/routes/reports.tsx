@@ -26,11 +26,15 @@ import {
 import { AlertTriangle, Download, FileBarChart, MapPin, ShieldAlert } from "lucide-react";
 
 const trend = Array.from({ length: 14 }, (_, i) => ({
-  d: `D${i+1}`, cases: 80 + Math.round(Math.sin(i/2)*20+i*2), flagged: 10 + Math.round(Math.cos(i/3)*5+i),
+  d: `D${i + 1}`,
+  cases: 80 + Math.round(Math.sin(i / 2) * 20 + i * 2),
+  flagged: 10 + Math.round(Math.cos(i / 3) * 5 + i),
 }));
 
 function downloadJson(filename: string, data: unknown) {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" });
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: "application/json;charset=utf-8",
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -42,12 +46,19 @@ function downloadJson(filename: string, data: unknown) {
 }
 
 export const Route = createFileRoute("/reports")({
-  head: () => ({ meta: [{ title: "Reports — Watson-Board" }, { name: "description", content: "Forensic intelligence reports." }] }),
+  head: () => ({
+    meta: [
+      { title: "Reports — Watson-Board" },
+      { name: "description", content: "Forensic intelligence reports." },
+    ],
+  }),
   component: () => {
     const totalCases = cases.length;
     const flaggedCases = cases.filter((c) => c.flagged);
     const criticalCases = cases.filter((c) => c.severity === "critical");
-    const avgAi = Math.round(cases.reduce((acc, c) => acc + c.aiConfidence, 0) / Math.max(1, cases.length));
+    const avgAi = Math.round(
+      cases.reduce((acc, c) => acc + c.aiConfidence, 0) / Math.max(1, cases.length),
+    );
 
     const last = trend[trend.length - 1];
     const prev = trend[trend.length - 2];
@@ -76,13 +87,21 @@ export const Route = createFileRoute("/reports")({
                 <h1 className="text-xl font-semibold text-gradient">Intelligence Reports</h1>
               </div>
               <p className="mt-1 text-sm text-muted-foreground">
-                Operational snapshot across cases, flags, and district-level anomalies (last 14 days).
+                Operational snapshot across cases, flags, and district-level anomalies (last 14
+                days).
               </p>
             </div>
             <div className="flex items-center gap-2">
               <Button
                 variant="secondary"
-                onClick={() => downloadJson("watson-board-report.json", { generatedAt: new Date().toISOString(), trend, districtData, cases })}
+                onClick={() =>
+                  downloadJson("watson-board-report.json", {
+                    generatedAt: new Date().toISOString(),
+                    trend,
+                    districtData,
+                    cases,
+                  })
+                }
               >
                 <Download />
                 Export JSON
@@ -127,9 +146,12 @@ export const Route = createFileRoute("/reports")({
             <div className="glass rounded-xl p-4 lg:col-span-2">
               <div className="flex items-baseline justify-between gap-2">
                 <div>
-                  <div className="text-[11px] uppercase tracking-widest text-muted-foreground">Cases trend (14 days)</div>
+                  <div className="text-[11px] uppercase tracking-widest text-muted-foreground">
+                    Cases trend (14 days)
+                  </div>
                   <div className="mt-1 text-sm text-muted-foreground">
-                    <span className="text-foreground">Cases</span> vs <span className="text-foreground">Flagged</span>
+                    <span className="text-foreground">Cases</span> vs{" "}
+                    <span className="text-foreground">Flagged</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -150,8 +172,20 @@ export const Route = createFileRoute("/reports")({
                         border: "1px solid rgba(120,200,255,0.3)",
                       }}
                     />
-                    <Line type="monotone" dataKey="cases" stroke="#5fd4ff" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="flagged" stroke="#ff4d6d" strokeWidth={2} dot={false} />
+                    <Line
+                      type="monotone"
+                      dataKey="cases"
+                      stroke="#5fd4ff"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="flagged"
+                      stroke="#ff4d6d"
+                      strokeWidth={2}
+                      dot={false}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -161,8 +195,12 @@ export const Route = createFileRoute("/reports")({
               <div className="glass rounded-xl p-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <div className="text-[11px] uppercase tracking-widest text-muted-foreground">Flagged by district</div>
-                    <div className="mt-1 text-sm text-muted-foreground">Flagged counts (current dataset)</div>
+                    <div className="text-[11px] uppercase tracking-widest text-muted-foreground">
+                      Flagged by district
+                    </div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      Flagged counts (current dataset)
+                    </div>
                   </div>
                   <Badge variant="outline" className="border-border/60">
                     Top {Math.min(6, districtData.length)}
@@ -170,10 +208,20 @@ export const Route = createFileRoute("/reports")({
                 </div>
                 <div className="mt-3 h-52">
                   <ResponsiveContainer>
-                    <BarChart data={districtData.slice(0, 6)} layout="vertical" margin={{ left: 10 }}>
+                    <BarChart
+                      data={districtData.slice(0, 6)}
+                      layout="vertical"
+                      margin={{ left: 10 }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,200,255,0.10)" />
                       <XAxis type="number" stroke="#7e8aa1" fontSize={11} />
-                      <YAxis type="category" dataKey="district" stroke="#7e8aa1" fontSize={11} width={82} />
+                      <YAxis
+                        type="category"
+                        dataKey="district"
+                        stroke="#7e8aa1"
+                        fontSize={11}
+                        width={82}
+                      />
                       <Tooltip
                         contentStyle={{
                           background: "rgba(15,20,35,0.9)",
@@ -189,8 +237,12 @@ export const Route = createFileRoute("/reports")({
               <div className="glass rounded-xl p-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <div className="text-[11px] uppercase tracking-widest text-muted-foreground">Top flagged cases</div>
-                    <div className="mt-1 text-sm text-muted-foreground">Highest risk signals to triage first</div>
+                    <div className="text-[11px] uppercase tracking-widest text-muted-foreground">
+                      Top flagged cases
+                    </div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      Highest risk signals to triage first
+                    </div>
                   </div>
                   <Badge variant="secondary" className="border border-border/60 bg-secondary/40">
                     {flaggedCases.length} flagged
@@ -211,12 +263,20 @@ export const Route = createFileRoute("/reports")({
                         <TableRow key={c.id} className="border-border/50">
                           <TableCell className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="font-mono text-xs text-muted-foreground">{c.id}</span>
+                              <span className="font-mono text-xs text-muted-foreground">
+                                {c.id}
+                              </span>
                               <span className="truncate text-sm">{c.title}</span>
                             </div>
                             <div className="mt-1 flex items-center gap-2">
                               <Badge
-                                variant={c.severity === "critical" ? "destructive" : c.severity === "high" ? "default" : "secondary"}
+                                variant={
+                                  c.severity === "critical"
+                                    ? "destructive"
+                                    : c.severity === "high"
+                                      ? "default"
+                                      : "secondary"
+                                }
                                 className="capitalize"
                               >
                                 {c.severity}
@@ -225,12 +285,17 @@ export const Route = createFileRoute("/reports")({
                             </div>
                           </TableCell>
                           <TableCell className="text-sm">{c.district}</TableCell>
-                          <TableCell className="text-right font-mono text-sm">{c.aiConfidence}%</TableCell>
+                          <TableCell className="text-right font-mono text-sm">
+                            {c.aiConfidence}%
+                          </TableCell>
                         </TableRow>
                       ))}
                       {topFlagged.length === 0 && (
                         <TableRow className="border-border/50">
-                          <TableCell colSpan={3} className="py-6 text-center text-sm text-muted-foreground">
+                          <TableCell
+                            colSpan={3}
+                            className="py-6 text-center text-sm text-muted-foreground"
+                          >
                             No flagged cases in the current dataset.
                           </TableCell>
                         </TableRow>

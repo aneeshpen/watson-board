@@ -1,22 +1,85 @@
+"""
+ChromaDB evidence store for the Watson-Board case corpus.
+
+Two fixes over the original:
+  * The client is a module-level singleton. The search route previously built a
+    new `chromadb.PersistentClient` on every request, reopening the database
+    each time.
+  * No emoji in stdout. `print("✅ ...")` raised UnicodeEncodeError under
+    the Windows cp1252 console *after* the data had been written, so seeding
+    appeared to fail while having half-succeeded.
+"""
+
 import os
+import sys
+import threading
+
 import chromadb
 
-# Ensure chroma stores data locally in a persistent folder
-PERSIST_DIRECTORY = os.path.join(os.path.dirname(__file__), "../chroma_data")
+# Allow running this file directly (`python services/chroma_db.py`, which the
+# README documents as the seeding step). Executed that way sys.path[0] is
+# backend/services rather than backend, so the sibling `config` module would
+# not resolve.
+if __package__ in (None, ""):
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from config import settings
+
+COLLECTION_NAME = "watson_board_evidence_graph"
+PERSIST_DIRECTORY = settings.chroma_path
+
+_client = None
+_client_lock = threading.Lock()
+
+
+def get_client() -> "chromadb.ClientAPI":
+    """Process-wide ChromaDB client (created once, reused thereafter)."""
+    global _client
+    if _client is None:
+        with _client_lock:
+            if _client is None:
+                os.makedirs(PERSIST_DIRECTORY, exist_ok=True)
+                _client = chromadb.PersistentClient(path=PERSIST_DIRECTORY)
+    return _client
+
+
+def get_collection():
+    """The evidence collection, created empty if it does not exist yet."""
+    return get_client().get_or_create_collection(
+        name=COLLECTION_NAME,
+        metadata={"description": "Vector DB for the Living Evidence Canvas"},
+    )
+
+
+def query_evidence(query_text: str, n_results: int = 5) -> list[dict]:
+    """Semantic search returning [{document, metadata, distance}, ...]."""
+    collection = get_collection()
+    if collection.count() == 0:
+        return []
+    n_results = max(1, min(int(n_results), collection.count()))
+    results = collection.query(query_texts=[query_text], n_results=n_results)
+
+    documents = results.get("documents") or [[]]
+    if not documents or not documents[0]:
+        return []
+
+    metadatas = (results.get("metadatas") or [[]])[0]
+    distances = (results.get("distances") or [[]])[0]
+    return [
+        {
+            "document": doc,
+            "metadata": metadatas[i] if i < len(metadatas) else {},
+            "distance": float(distances[i]) if i < len(distances) else None,
+        }
+        for i, doc in enumerate(documents[0])
+    ]
+
 
 def setup_chromadb():
+    """Seed (idempotently) the case C-2041 evidence corpus."""
     print(f"Initializing ChromaDB in {PERSIST_DIRECTORY}...")
-    
-    # 1. Connect to the Persistent Client
-    client = chromadb.PersistentClient(path=PERSIST_DIRECTORY)
-    
-    # 2. Get or create the collection
-    # We use get_or_create so we don't crash if it already exists
-    collection = client.get_or_create_collection(
-        name="watson_board_evidence_graph",
-        metadata={"description": "Vector DB for the Living Evidence Canvas"}
-    )
-    
+    collection = get_collection()
+
     # 3. Format your new evidence data
     documents = [
         # Victim & Autopsy
@@ -83,17 +146,16 @@ def setup_chromadb():
         ids=ids
     )
     
-    print("✅ Database successfully populated with graph relationships!")
+    print("Database successfully populated with graph relationships.")
     return collection
 
 def query_chromadb(query_text: str, n_results: int = 2):
     """
     Demonstrates how to semantic search the database.
     """
-    client = chromadb.PersistentClient(path=PERSIST_DIRECTORY)
-    collection = client.get_collection(name="watson_board_evidence_graph")
+    collection = get_collection()
     
-    print(f"\n🔍 Querying DB for: '{query_text}'")
+    print(f"\nQuerying DB for: '{query_text}'")
     results = collection.query(
         query_texts=[query_text],
         n_results=n_results

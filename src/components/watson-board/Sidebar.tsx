@@ -1,14 +1,27 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
-  LayoutDashboard, FolderSearch, Network, Clock, Map,
-  Bot, Bell, FileBarChart, Settings, ShieldHalf,
+  LayoutDashboard,
+  FolderSearch,
+  Network,
+  Clock,
+  Map,
+  Bot,
+  Bell,
+  FileBarChart,
+  Settings,
+  ShieldHalf,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
 const items = [
   { to: "/", label: "Command Center", icon: LayoutDashboard },
   { to: "/cases", label: "Cases", icon: FolderSearch },
-  { to: "/cases/C-2041", label: "Investigation Graph", icon: Network },
+  {
+    to: "/cases/$caseId",
+    params: { caseId: "C-2041" },
+    label: "Investigation Graph",
+    icon: Network,
+  },
   { to: "/timeline", label: "Timeline Replay", icon: Clock },
   { to: "/heatmap", label: "Heatmaps", icon: Map },
   { to: "/copilot", label: "AI Copilot", icon: Bot },
@@ -22,15 +35,19 @@ export function Sidebar() {
   return (
     <aside className="z-20 flex w-[68px] shrink-0 flex-col items-center justify-between border-r border-sidebar-border bg-sidebar/80 py-4 backdrop-blur-xl">
       <div className="flex flex-col items-center gap-2">
-        <Link to="/" className="group relative mb-3 grid h-10 w-10 place-items-center rounded-lg bg-gradient-to-br from-primary/30 to-neon-2/30 neon-border">
+        <Link
+          to="/"
+          className="group relative mb-3 grid h-10 w-10 place-items-center rounded-lg bg-gradient-to-br from-primary/30 to-neon-2/30 neon-border"
+        >
           <ShieldHalf className="h-5 w-5 text-primary" />
           <span className="absolute -inset-1 rounded-xl opacity-0 transition group-hover:opacity-100 glow-primary" />
         </Link>
 
-        {items.map(({ to, label, icon: Icon }) => {
-          const active = to === "/" ? path === "/" : path.startsWith(to.split("/").slice(0,2).join("/"));
+        {items.map(({ to, label, icon: Icon, ...rest }) => {
+          const active =
+            to === "/" ? path === "/" : path.startsWith(to.split("/").slice(0, 2).join("/"));
           return (
-            <Link key={to} to={to} className="group relative">
+            <Link key={to} to={to} {...(rest as object)} className="group relative">
               <motion.div
                 whileHover={{ scale: 1.08 }}
                 whileTap={{ scale: 0.95 }}

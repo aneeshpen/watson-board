@@ -38,6 +38,9 @@ __pycache__/
 
 .vercel
 
+# Python caches
+.pytest_cache/
+
 # Python virtual environments
 .venv/
 venv/
@@ -45,3 +48,11 @@ backend/.venv/
 
 # Trained model artifacts (regenerate with: python backend/train_model.py)
 models/
+
+# Local environment files
+.env
+backend/.env
+
+# CCTV upload scratch space
+backend/temp_uploads/
+

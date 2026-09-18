@@ -3,7 +3,12 @@ import { Shell } from "@/components/watson-board/Shell";
 import { CaseTable } from "@/components/watson-board/CaseTable";
 
 export const Route = createFileRoute("/cases/")({
-  head: () => ({ meta: [{ title: "Cases — Watson-Board" }, { name: "description", content: "Browse all investigations." }] }),
+  head: () => ({
+    meta: [
+      { title: "Cases — Watson-Board" },
+      { name: "description", content: "Browse all investigations." },
+    ],
+  }),
   component: () => (
     <Shell>
       <div className="space-y-4 p-5">

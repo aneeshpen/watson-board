@@ -1,4 +1,5 @@
 # Watson-Board
+
 ## AI-Powered Forensic Triage & Postmortem Intelligence System
 
 > An investigative intelligence platform integrating Machine Learning, Computer Vision, NLP, and interactive data visualization to accelerate forensic case analysis.
@@ -26,7 +27,7 @@ Watson-Board uses a decoupled, two-tier architecture:
 ```
 +----------------------------------------------------------------------+
 |                       FRONTEND (React + Vite)                        |
-|  TanStack Router . Zustand . Recharts . React Flow . Leaflet . GSAP  |
+|  TanStack Router . TanStack Query . Recharts . React Flow . Leaflet  |
 |  ------------------------------------------------------------------- |
 |  Dashboard  |  Case Workspace  |  Timeline Replay  |  AI Copilot    |
 |  Reports    |  Movement Map    |  Investigation Graph                 |
@@ -53,26 +54,21 @@ Built as a React 19 + Vite Single Page Application (SPA) with file-based routing
 
 ### Technology Stack (Frontend)
 
-| Category | Technology | Version |
-|---|---|---|
-| **Core Framework** | React | 19.x |
-| **Build Tool** | Vite | 7.x |
-| **Language** | TypeScript | 5.8.x |
-| **Routing** | TanStack Router | 1.168.x |
-| **Server State** | TanStack Query | 5.83.x |
-| **Client State** | Zustand | 5.0.x |
-| **Styling** | Tailwind CSS | 4.2.x |
-| **UI Primitives** | Radix UI | (full suite) |
-| **Charts** | Recharts | 3.8.x |
-| **Node Graph** | React Flow | 11.11.x |
-| **Maps** | Leaflet + React Leaflet | 1.9.x / 5.0.x |
-| **Animation** | Framer Motion | 12.38.x |
-| **Animation** | GSAP | 3.15.x |
-| **Icons** | Lucide React | 0.575.x |
-| **Forms** | React Hook Form + Zod | 7.71.x / 3.24.x |
-| **Drag & Drop** | DnD Kit | 6.3.x |
-| **Date Utilities** | date-fns | 4.1.x |
-| **Deployment** | Cloudflare Workers | via @cloudflare/vite-plugin |
+| Category           | Technology      | Version      |
+| ------------------ | --------------- | ------------ |
+| **Core Framework** | React           | 19.x         |
+| **Build Tool**     | Vite            | 7.x          |
+| **Language**       | TypeScript      | 5.8.x        |
+| **Routing**        | TanStack Router | 1.168.x      |
+| **Server State**   | TanStack Query  | 5.83.x       |
+| **Styling**        | Tailwind CSS    | 4.2.x        |
+| **UI Primitives**  | Radix UI        | (full suite) |
+| **Charts**         | Recharts        | 3.8.x        |
+| **Node Graph**     | React Flow      | 11.11.x      |
+| **Maps**           | Leaflet         | 1.9.x        |
+| **Animation**      | Framer Motion   | 12.38.x      |
+| **Icons**          | Lucide React    | 0.575.x      |
+| **Forms**          | React Hook Form | 7.71.x       |
 
 ---
 
@@ -80,47 +76,114 @@ Built as a React 19 + Vite Single Page Application (SPA) with file-based routing
 
 A Python-based REST API built with FastAPI, serving three primary intelligence modules. The backend starts automatically, loads the trained ML model, and exposes a full Swagger UI at `/docs`.
 
-
 ## PMI Prediction Engine (Deep Dive)
 
-**Files:** `train_model.py`, `backend/routers/pmi_router.py`
+**Files:** `backend/train_model.py`, `backend/routers/pmi_router.py`, `backend/services/pmi_explain.py`
 
-The PMI engine uses **Lange et al.'s Vitreous Potassium formula** as the ground truth for deriving target labels during training:
+### The problem with the obvious approach
 
-```
-PMI (hours) = (Vitreous Potassium - 5.04) / 0.7
-```
+This dataset has **no ground-truth PMI or time-of-death column**. A label has to be
+constructed. The naive construction is:
 
-**ML Pipeline (`sklearn.Pipeline`):**
-
-**Step 1 — Preprocessing (`ColumnTransformer`):**
-- **Numeric features** (`Age`, `Height`, `Weight`, `Putrefaction`, `Algor Mortis`, `Vitreous Potassium`): Scaled with `StandardScaler`.
-- **Categorical features** (`Sex`, `Putre_level`, `Rigor Mortis`, `Livor Mortis`, `Stomach Contents`, `Entomology`): Encoded with `OneHotEncoder(handle_unknown='ignore')`.
-
-**Step 2 — Regressor:**
-`RandomForestRegressor(n_estimators=200, random_state=42, n_jobs=-1)` trained on ~3000 autopsy records.
-
-**Step 3 — Model Persistence:**
-Saved to `models/pmi_model.pkl` via `joblib`. Auto-loaded at startup; if the file is missing, training is triggered automatically from the CSV.
-
-**Step 4 — Confidence Scoring:**
-Computed from the coefficient of variation (CV) of predictions across all 200 individual trees:
-```
-confidence = (1 - std/mean) x 100
+```python
+df["PMI"] = (df["Vitreous Potassium"] - 5.04) / 0.7   # the target
+FEATURES  = [..., "Vitreous Potassium", ...]          # ...also an input
 ```
 
-**Step 5 — Feature Importance:**
-Post-prediction, importances are extracted from the Random Forest and mapped back from one-hot-encoded column names to original base feature names, returned as a percentage-weighted dictionary in the response.
+That is target leakage. The label is a closed-form function of one of its own
+inputs, so the forest just re-learns the line: potassium takes ~99.8% of the
+feature importance and nothing else moves the prediction — a still-warm body and
+a decomposing one score identically.
 
-**Step 6 — Data Cleaning:**
-A dedicated `clean_dataset()` function fixes common data quality issues:
-- Fills missing putrefaction levels (`Putre_level`) when Putrefaction = 0.
-- Fills missing `Rigor Mortis` and `Livor Mortis` states with "None".
-- Clips negative `abdominal cavity` values to 0.
+### What this model does instead
+
+It poses a question worth asking:
+
+> Vitreous potassium is the best quantitative PMI estimator available, but it
+> requires vitreous humour aspiration and lab analysis. **How well can PMI be
+> recovered at the scene, from decomposition signs alone?**
+
+So the **Lange vitreous-potassium regression is the label**, and potassium is
+**excluded from the feature matrix**. The model must infer PMI from indicators an
+examiner can assess directly: body cooling, rigor, livor, entomology,
+putrefaction. The signal is real rather than circular — Algor Mortis correlates
+**r ≈ -0.68** with Vitreous Potassium in this data.
+
+### Pipeline
+
+| Stage             | Detail                                                                                                                                        |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Preprocessing** | `StandardScaler` on numerics; `OneHotEncoder(handle_unknown="error")` on categoricals, with an explicit vocabulary shared with the API schema |
+| **Regressor**     | `RandomForestRegressor(n_estimators=300, min_samples_leaf=2)`                                                                                 |
+| **Validation**    | 80/20 hold-out split **plus** 5-fold cross-validation                                                                                         |
+| **Explanations**  | **TreeSHAP per prediction** — contributions sum to `prediction - base_value` for that specific input                                          |
+| **Uncertainty**   | 10th-90th percentile across the 300 trees, returned as a prediction interval                                                                  |
+
+### Measured performance
+
+Reproduce with `python backend/train_model.py`; the numbers are written to
+`models/pmi_metrics.json` and served at `GET /api/pmi/model-info`.
+
+| Model                                                      | MAE (hours) | R²        |
+| ---------------------------------------------------------- | ----------- | --------- |
+| Predict-train-mean (trivial floor)                         | 4.90        | —         |
+| Henssge body-cooling physics, linearly calibrated on train | 3.11        | 0.500     |
+| **Random Forest (this model)**                             | **0.76**    | **0.963** |
+
+5-fold CV MAE: **0.76 ± 0.02 h**.
+
+The physics baseline is included deliberately: it is what the ML has to beat to
+justify existing. It is calibrated on the training split only, so the comparison
+is not rigged.
+
+### Honest caveats
+
+- The label is a **proxy standard**, not a forensically established PMI.
+- The dataset's forensic columns are **synthetic and tightly coupled**, so
+  R² = 0.963 is optimistic and should **not** be read as real-world accuracy.
+  The gap against the Henssge and mean baselines is the meaningful result.
+- Investigative triage support only — not a substitute for a forensic
+  pathologist's determination.
+
+### Input validation
+
+Every categorical is a closed enum. Invalid values return **HTTP 422** listing the
+permitted options. (Previously all six were bare strings and
+`handle_unknown="ignore"` swallowed typos into an all-zero vector, so
+`Sex="banana"` returned a confident answer with HTTP 200.)
+
+---
+
+## Investigative Copilot (RAG)
+
+**Files:** `backend/services/copilot.py`, `backend/routers/copilot_router.py`
+
+Retrieval-augmented generation over the case evidence corpus:
+
+1. **Retrieve** — semantic search over ChromaDB returns the top-k evidence chunks.
+2. **Ground** — chunks are rendered into a numbered, citable block carrying each
+   item's `node_id`, type and confidence.
+3. **Generate** — Claude answers **only** from that context, under a system prompt
+   that requires citing every claim by node id and refusing to invent evidence.
+4. **Stream** — answers arrive over Server-Sent Events. A `sources` event is
+   emitted _before_ any text, so the UI shows what the answer is grounded in
+   while it is still being written.
+
+Without an `ANTHROPIC_API_KEY` the Copilot degrades to retrieval-only rather than
+erroring, so the app still runs end-to-end on a fresh clone.
+
+```
+GET  /api/copilot/stream?question=...   # SSE: sources -> delta* -> done
+POST /api/copilot/ask                   # non-streaming, same grounding
+GET  /api/copilot/status                # rag | retrieval_only
+```
 
 ---
 
 ## CCTV Forensic Analyzer (Deep Dive)
+
+> Requires **OpenCV 4.x** — `opencv-python-headless` is pinned `<5.0.0` because
+> OpenCV 5 removed `cv2.HOGDescriptor`, which the person detector uses.
 
 **File:** `backend/services/cctv_analyzer.py`
 
@@ -130,13 +193,13 @@ A pure Python/OpenCV video analysis pipeline with no external cloud AI dependenc
 
 Uses **five intelligent strategies** to extract forensically relevant key frames:
 
-| Strategy | Mechanism |
-|---|---|
-| **First frame** | Always extracted to establish the opening scene context. |
-| **Time-interval sampling** | Extracts a frame every N seconds (default: 1.5s). Configurable via API param. |
-| **Motion detection** | Frame differencing via `cv2.absdiff`. Extracts when motion ratio exceeds 2% of pixels. |
+| Strategy                   | Mechanism                                                                                 |
+| -------------------------- | ----------------------------------------------------------------------------------------- |
+| **First frame**            | Always extracted to establish the opening scene context.                                  |
+| **Time-interval sampling** | Extracts a frame every N seconds (default: 1.5s). Configurable via API param.             |
+| **Motion detection**       | Frame differencing via `cv2.absdiff`. Extracts when motion ratio exceeds 2% of pixels.    |
 | **Scene change detection** | Histogram comparison via `cv2.HISTCMP_CORREL`. Extracts when correlation drops below 0.6. |
-| **Last frame** | Always extracted to capture the final state of the footage. |
+| **Last frame**             | Always extracted to capture the final state of the footage.                               |
 
 ### Forensic Description (`ForensicDescriber` class)
 
@@ -156,60 +219,62 @@ Generates natural-language forensic descriptions (max 20 words) for each frame u
 
 ChromaDB is used as a local persistent vector database to store and semantically search forensic evidence documents for Case C-2041.
 
-**Collection:** `watson_board_evidence_graph`
+**Collection:** `watson_board_evidence_graph` (18 documents; the client is a process-wide singleton)
 
 **Stored document types (with metadata):**
 
-| Type | Examples |
-|---|---|
-| `victim` | Demographics, cause of death, injury details |
-| `autopsy` | Organ weights, stomach contents, PMI indicators |
-| `toxicology` | BAC levels, drug traces |
-| `suspect` | Suspect profiles, prior convictions, financial links |
-| `evidence` | Weapon details, fingerprint matches, DNA results |
-| `timeline` | CCTV footage logs, financial transactions, phone records |
-| `environmental` | Witness statements, weather logs |
+| Type            | Examples                                                 |
+| --------------- | -------------------------------------------------------- |
+| `victim`        | Demographics, cause of death, injury details             |
+| `autopsy`       | Organ weights, stomach contents, PMI indicators          |
+| `toxicology`    | BAC levels, drug traces                                  |
+| `suspect`       | Suspect profiles, prior convictions, financial links     |
+| `evidence`      | Weapon details, fingerprint matches, DNA results         |
+| `timeline`      | CCTV footage logs, financial transactions, phone records |
+| `environmental` | Witness statements, weather logs                         |
 
 Each document is stored with `node_id`, `type`, `confidence`, and `linked_to` metadata fields, enabling relationship-aware retrieval. Semantic search is performed via `/api/search?query=...` and is used by the AI Copilot to answer natural language forensic queries.
 
 ### Technology Stack (Backend)
 
-| Category | Technology | Version |
-|---|---|---|
-| **API Framework** | FastAPI | >=0.103.1 |
-| **Server** | Uvicorn | >=0.23.2 |
-| **Data Processing** | Pandas | >=2.2.0 |
-| **Machine Learning** | Scikit-learn | >=1.4.0 |
-| **Model Serialization** | Joblib | >=1.3.0 |
-| **Computer Vision** | OpenCV (headless) | >=4.8.0 |
-| **Image Processing** | Pillow | >=10.0.0 |
-| **Numerical Computing** | NumPy | >=1.24.0 |
-| **Vector Database** | ChromaDB | >=0.4.0 |
-| **Data Validation** | Pydantic | >=2.3.0 |
-| **Test Data** | Faker | >=19.3.0 |
-
+| Category                | Technology        | Version   |
+| ----------------------- | ----------------- | --------- |
+| **API Framework**       | FastAPI           | >=0.103.1 |
+| **Server**              | Uvicorn           | >=0.23.2  |
+| **Data Processing**     | Pandas            | >=2.2.0   |
+| **Machine Learning**    | Scikit-learn      | >=1.4.0   |
+| **Model Serialization** | Joblib            | >=1.3.0   |
+| **Computer Vision**     | OpenCV (headless) | >=4.8.0   |
+| **Image Processing**    | Pillow            | >=10.0.0  |
+| **Numerical Computing** | NumPy             | >=1.24.0  |
+| **Vector Database**     | ChromaDB          | >=1.0,<2  |
+| **Data Validation**     | Pydantic          | >=2.3.0   |
 
 ## Project Structure
 
 ```
 Watson-Board/
 ├── backend/                      # Python FastAPI backend
-│   ├── main.py                   # FastAPI app entry point, CORS, router registration
-│   ├── schemas.py                # Pydantic models (PMI request/response)
+│   ├── main.py                   # FastAPI app, lifespan, CORS, error handlers
+│   ├── config.py                 # Pydantic Settings (env-driven configuration)
+│   ├── security.py               # API-key auth dependency + rate limiter
+│   ├── schemas.py                # Pydantic models (enum-validated PMI request)
 │   ├── cctv_schemas.py           # Pydantic models for CCTV analysis
 │   ├── train_model.py            # ML model training pipeline (Random Forest)
 │   ├── requirements.txt          # Python dependencies
-│   ├── test_cctv.py              # CCTV module tests
 │   ├── chroma_data/              # Persistent ChromaDB vector storage
 │   ├── routers/
 │   │   ├── case_router.py        # Case mgmt, autopsy, timeline, search endpoints
-│   │   ├── pmi_router.py         # PMI prediction & model training endpoints
-│   │   └── cctv_router.py        # CCTV video upload & analysis endpoints
+│   │   ├── pmi_router.py         # PMI prediction, explanation & model info
+│   │   ├── cctv_router.py        # CCTV video upload & analysis endpoints
+│   │   └── copilot_router.py     # RAG endpoints (SSE stream + ask)
 │   └── services/
 │       ├── autopsy_service.py    # Autopsy CSV reader service
 │       ├── cctv_analyzer.py      # Full OpenCV video analysis pipeline
-│       ├── chroma_db.py          # ChromaDB setup & evidence population
-│       └── data_generator.py     # Timeline & movement data generation
+│       ├── chroma_db.py          # ChromaDB client singleton & evidence seeding
+│       ├── copilot.py            # RAG: retrieval -> grounded generation
+│       ├── pmi_explain.py        # Per-prediction TreeSHAP explanations
+│       └── data_generator.py     # Case timeline & movement fixtures
 │
 ├── dataset/                      # Training data & sample case evidence
 │   ├── forensic_autopsy_3000.csv # ML training dataset (~3000 records)
@@ -244,8 +309,8 @@ Watson-Board/
 │   │   │   └── LiveFeed.tsx            # Real-time alert/event feed
 │   │   └── ui/                   # Radix UI / shadcn component library
 │   ├── data/                     # Static frontend data (cases, evidence vault)
-│   ├── lib/                      # API client and utility functions
-│   ├── hooks/                    # Custom React hooks
+│   ├── lib/                      # Typed API client (+ SSE) and utilities
+│   ├── hooks/                    # React Query data hooks
 │   ├── contexts/                 # React Context providers
 │   └── styles.css                # Global Tailwind + custom CSS
 │
@@ -263,44 +328,64 @@ Watson-Board/
 ### Prerequisites
 
 - **Node.js** v18 or higher
-- **Python** 3.9 or higher
-- **pip** (Python package manager)
+- **Python** 3.10-3.12 (3.13+ has no wheels yet for some ML dependencies)
+- **pip**
+
+> **Windows note:** run Python commands with `PYTHONIOENCODING=utf-8` if your
+> console codepage is cp1252.
 
 ### Backend Setup
 
 1. Navigate to the backend directory:
+
    ```bash
    cd backend
    ```
 
-2. Install Python dependencies:
+2. Create a virtual environment and install dependencies:
+
    ```bash
+   python -m venv .venv && .venv/Scripts/activate      # Windows
+   # python3 -m venv .venv && source .venv/bin/activate  # macOS / Linux
    pip install -r requirements.txt
    ```
 
-3. Initialize the ChromaDB evidence store (one-time setup for Case C-2041):
+3. Configure the environment:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Set `ADMIN_API_KEY` to protect the training and CCTV endpoints, and
+   `ANTHROPIC_API_KEY` to enable generated Copilot answers. Both are optional
+   locally — the app runs without them and logs what is disabled.
+
+4. Initialize the ChromaDB evidence store (one-time setup for Case C-2041):
+
    ```bash
    python services/chroma_db.py
    ```
 
-4. Train the PMI model (one-time; auto-triggered on first startup if model is absent):
+5. Train the PMI model (one-time; auto-triggered on first startup if absent). Prints hold-out MAE/RMSE/R² and the baseline comparison:
+
    ```bash
    python train_model.py
    ```
 
-5. Start the FastAPI development server:
+6. Start the FastAPI development server:
    ```bash
    uvicorn main:app --reload --host 0.0.0.0 --port 8000
    ```
 
 The backend runs at **`http://localhost:8000`**.
-Interactive Swagger API docs: **`http://localhost:8000/docs`**
+Swagger docs: **`/docs`** · liveness: **`/health`** · readiness: **`/ready`**
 
 ### Frontend Setup
 
 Open a new terminal in the project root directory:
 
 1. Install Node.js dependencies:
+
    ```bash
    npm install
    ```
@@ -314,13 +399,57 @@ The frontend runs at **`http://localhost:8080`** (set in `vite.config.ts`), and 
 
 ### Frontend Scripts
 
-| Command | Description |
-|---|---|
-| `npm run dev` | Start the Vite development server |
-| `npm run build` | Build the production bundle |
-| `npm run preview` | Preview the production build locally |
-| `npm run lint` | Run ESLint on the codebase |
-| `npm run format` | Auto-format code with Prettier |
+| Command             | Description                          |
+| ------------------- | ------------------------------------ |
+| `npm run dev`       | Start the Vite development server    |
+| `npm run build`     | Build the production bundle          |
+| `npm run preview`   | Preview the production build locally |
+| `npm run lint`      | Run ESLint on the codebase           |
+| `npm run typecheck` | Type-check with `tsc --noEmit`       |
+| `npm run format`    | Auto-format code with Prettier       |
+
+### Deploying
+
+The production bundle is a static SPA with **no dev proxy**, so the API origin must
+be supplied at build time:
+
+```bash
+VITE_API_BASE_URL=https://your-api-host npm run build
+```
+
+Set `ADMIN_API_KEY` and a restrictive `CORS_ORIGINS` on the backend before exposing it.
+
+---
+
+## Security & Operational Posture
+
+| Concern             | Handling                                                                                                                                                                    |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Authentication**  | `X-API-Key` (`ADMIN_API_KEY`) guards `POST /api/pmi/train` and the CCTV upload endpoints. Unset locally for convenience; startup logs a warning so the gap is never silent. |
+| **Rate limiting**   | `slowapi`, per-IP. Expensive routes (training, CCTV, Copilot) get a tighter bucket than read endpoints.                                                                     |
+| **CORS**            | Explicit origin allow-list from `CORS_ORIGINS`. Not `*`.                                                                                                                    |
+| **Error responses** | Handlers log internally and return generic messages — no exception strings or filesystem paths reach the client.                                                            |
+| **Input bounds**    | Pagination, search result counts, upload size, and every numeric field are bounded at the schema level.                                                                     |
+| **Concurrency**     | The PMI model is swapped under a lock; a second concurrent retrain is rejected with `409` rather than corrupting state.                                                     |
+| **Blocking work**   | OpenCV analysis runs in a worker thread, not on the event loop.                                                                                                             |
+
+---
+
+## Known Limitations
+
+Stated plainly rather than hidden:
+
+- The PMI label is a **proxy standard** derived from vitreous potassium; there is
+  no ground-truth PMI in the dataset. See the caveats under
+  [PMI Prediction Engine](#pmi-prediction-engine-deep-dive).
+- The dataset's forensic columns are **synthetic**, so hold-out R² is optimistic.
+- The case timeline and movement fixtures cover **one case (C-2041)**; other case
+  ids correctly return `404` rather than pretending to have data.
+- Several dashboard counters are **demo fixtures**, flagged as such by the
+  `fixture_counters` field on `/api/stats` and labelled in the UI.
+- The CCTV analyser is classical computer vision (HOG + colour/motion
+  heuristics), not a trained detector.
+- Settings is a placeholder screen.
 
 ---
 

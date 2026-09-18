@@ -1,0 +1,12 @@
+# Normalise line endings so the repo is LF everywhere and Windows clones stop
+# producing thousands of phantom prettier/CRLF lint errors.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.mp4 binary
+*.pkl binary
+*.sqlite3 binary
+*.bin binary

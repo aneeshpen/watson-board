@@ -13,13 +13,18 @@ export function LiveFeed() {
   return (
     <div className="glass relative h-[360px] overflow-hidden rounded-xl p-4">
       <div className="mb-2 flex items-center justify-between">
-        <div className="text-[11px] uppercase tracking-widest text-muted-foreground">Live Investigation Feed</div>
+        <div className="text-[11px] uppercase tracking-widest text-muted-foreground">
+          Live Investigation Feed
+        </div>
         <span className="flex items-center gap-1 text-[10px] text-success">
           <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse-ring" /> live
         </span>
       </div>
       <div className="scanline pointer-events-none absolute inset-0 opacity-40" />
-      <div className="space-y-1.5 overflow-y-auto pr-1 font-mono text-[12px]" style={{ height: "calc(100% - 28px)" }}>
+      <div
+        className="space-y-1.5 overflow-y-auto pr-1 font-mono text-[12px]"
+        style={{ height: "calc(100% - 28px)" }}
+      >
         {liveFeed.map((f, i) => (
           <motion.div
             key={i}

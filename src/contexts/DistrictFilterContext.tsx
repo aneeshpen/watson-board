@@ -1,11 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 
 export type DistrictFilterContextValue = {
   /** `null` = all districts */
@@ -22,9 +15,7 @@ export function DistrictFilterProvider({ children }: { children: ReactNode }) {
   }, []);
   const value = useMemo(() => ({ district, setDistrict }), [district, setDistrict]);
 
-  return (
-    <DistrictFilterContext.Provider value={value}>{children}</DistrictFilterContext.Provider>
-  );
+  return <DistrictFilterContext.Provider value={value}>{children}</DistrictFilterContext.Provider>;
 }
 
 export function useDistrictFilter(): DistrictFilterContextValue {

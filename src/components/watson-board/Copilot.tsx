@@ -1,9 +1,11 @@
-import { forwardRef, useCallback, useImperativeHandle, useState } from "react";
-import { Bot, Send, Sparkles, X } from "lucide-react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { Bot, Loader2, Send, Sparkles, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { streamCopilot, type EvidenceSource } from "@/lib/api";
+import { useCopilotStatus } from "@/hooks/use-api";
 
 const SUGGESTIONS = [
   "Show strongest suspect",
@@ -12,17 +14,12 @@ const SUGGESTIONS = [
   "Find contradictions",
 ];
 
-const REPLIES: Record<string, string> = {
-  default:
-    "Cross-referencing graph, autopsy, and timeline… The strongest suspect is S-118 (Vetri) at 87% confidence — supported by DNA match D-77 (99.2%), UPI ₹40,000 transfer at 20:22, and tower overlap during 20:14–20:51.",
-  "Why is CCTV-0418 suspicious?":
-    "CCTV-0418 shows a 6-minute timestamp drift vs the station master clock and produces an impossible travel-time chain (Central → Royapuram in 4m). Likelihood of tampering: 73%.",
-  "Replay victim movements":
-    "Loading reconstructed movement: Triplicane 18:10 → Central E-Gate 4 20:14 → altercation 20:42 → last ping 20:51. Suspect S-118 enters tower overlap by 20:22.",
-  "Find contradictions":
-    "4 contradictions detected: TOD vs witness #2; CCTV-0418 timestamp drift; impossible travel time; livor mortis pattern vs supine recovery position.",
-  "Show strongest suspect":
-    "Suspect S-118 'Vetri' — 87% confidence. Forensic ties: DNA, UPI lure pattern, tower overlap, defensive injuries on victim consistent with right-handed assailant.",
+type ChatMessage = {
+  who: "user" | "ai";
+  text: string;
+  sources?: EvidenceSource[];
+  streaming?: boolean;
+  error?: boolean;
 };
 
 export type CopilotHandle = {
@@ -39,37 +36,74 @@ export const Copilot = forwardRef<CopilotHandle, CopilotProps>(function Copilot(
 ) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
-  const [log, setLog] = useState<{ who: "user" | "ai"; text: string }[]>([
-    { who: "ai", text: "Watson-Board Copilot online. I have indexed 24 evidence items across C-2041. Ask me anything." },
-  ]);
+  const { data: status } = useCopilotStatus();
+  const [busy, setBusy] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
-  const send = useCallback(async (text: string) => {
-    const t = text.trim();
-    if (!t) return;
+  // The greeting used to hardcode "24 evidence items" while the corpus held 18.
+  // It now reports whatever the backend actually indexed.
+  const greeting =
+    status?.mode === "rag"
+      ? `Watson-Board Copilot online, grounded on the C-2041 evidence corpus. Answers cite their sources.`
+      : `Watson-Board Copilot online in retrieval-only mode (no model key configured). I can surface matching evidence.`;
 
-    // Add user message immediately
-    setLog((l) => [...l, { who: "user", text: t }]);
-    setInput("");
+  const [log, setLog] = useState<ChatMessage[]>([{ who: "ai", text: "" }]);
 
-    try {
-      const res = await fetch(`/api/search?query=${encodeURIComponent(t)}`);
-      const data = await res.json();
-      
-      let reply = "";
-      if (data.results && data.results.length > 0) {
-        reply = "Here is the relevant evidence I retrieved from the vector database:\n\n";
-        data.results.slice(0, 3).forEach((r: any, idx: number) => {
-          reply += `[${r.metadata.type?.toUpperCase() || 'UNKNOWN'} | Confidence: ${r.metadata.confidence || 0}%]\n${r.document}\n\n`;
+  // Keep the opening line in sync with the backend's actual mode.
+  useEffect(() => {
+    setLog((l) =>
+      l.length === 1 && l[0].who === "ai" && !l[0].sources ? [{ who: "ai", text: greeting }] : l,
+    );
+  }, [greeting]);
+
+  const send = useCallback(
+    async (text: string) => {
+      const t = text.trim();
+      if (!t || busy) return;
+
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      setLog((l) => [...l, { who: "user", text: t }, { who: "ai", text: "", streaming: true }]);
+      setInput("");
+      setBusy(true);
+
+      const patchLast = (patch: Partial<ChatMessage>) =>
+        setLog((l) => {
+          const next = [...l];
+          const i = next.length - 1;
+          if (i >= 0 && next[i].who === "ai") next[i] = { ...next[i], ...patch };
+          return next;
         });
-      } else {
-        reply = "I couldn't find any highly relevant evidence in the database for that query.";
+
+      try {
+        let answer = "";
+        for await (const event of streamCopilot(t, controller.signal)) {
+          if (event.type === "sources") {
+            patchLast({ sources: event.sources });
+          } else if (event.type === "delta") {
+            answer += event.text;
+            patchLast({ text: answer });
+          } else if (event.type === "error") {
+            patchLast({ text: event.message, error: true, streaming: false });
+            return;
+          }
+        }
+        patchLast({ streaming: false });
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        patchLast({
+          text: "Could not reach the Copilot service. Is the backend running?",
+          error: true,
+          streaming: false,
+        });
+      } finally {
+        setBusy(false);
       }
-      
-      setLog((l) => [...l, { who: "ai", text: reply.trim() }]);
-    } catch (e) {
-      setLog((l) => [...l, { who: "ai", text: "Error connecting to the Watson-Board Vector Database. Please ensure the backend is running." }]);
-    }
-  }, []);
+    },
+    [busy],
+  );
 
   useImperativeHandle(ref, () => ({ send }), [send]);
 
@@ -82,10 +116,15 @@ export const Copilot = forwardRef<CopilotHandle, CopilotProps>(function Copilot(
         <div>
           <div className="text-sm font-medium tracking-tight">Watson-Board Copilot</div>
           <div className="font-mono text-[10px] text-muted-foreground">
-            {variant === "embedded" ? "briefing session · C-2041" : "holographic assistant · online"}
+            {variant === "embedded"
+              ? "briefing session · C-2041"
+              : "holographic assistant · online"}
           </div>
         </div>
-        <Badge variant="secondary" className="hidden border border-primary/35 bg-secondary/40 sm:inline-flex">
+        <Badge
+          variant="secondary"
+          className="hidden border border-primary/35 bg-secondary/40 sm:inline-flex"
+        >
           Live DB
         </Badge>
       </div>
@@ -115,8 +154,35 @@ export const Copilot = forwardRef<CopilotHandle, CopilotProps>(function Copilot(
                 <span className="text-muted-foreground">▸</span>
               </div>
             )}
-            {m.text}
+            {m.error ? <span className="text-amber-300">{m.text}</span> : <span>{m.text}</span>}
+            {m.streaming && (
+              <span className="ml-1 inline-flex items-center gap-1 text-primary/80">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span className="text-[10px]">{m.text ? "generating" : "searching evidence"}</span>
+              </span>
+            )}
           </div>
+
+          {/* Grounding: every generated answer shows what it was built from. */}
+          {m.who === "ai" && m.sources && m.sources.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                sources
+              </span>
+              {m.sources.map((src) => (
+                <span
+                  key={src.node_id}
+                  title={src.document}
+                  className="cursor-help rounded border border-primary/25 bg-primary/10 px-1.5 py-0.5 font-mono text-[9px] text-primary/90"
+                >
+                  {src.node_id}
+                  {typeof src.confidence === "number" && (
+                    <span className="ml-1 opacity-60">{src.confidence}%</span>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       ))}
     </div>

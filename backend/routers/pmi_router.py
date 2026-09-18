@@ -1,163 +1,151 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
-import pandas as pd
-import numpy as np
-import joblib
+"""PMI prediction and model management endpoints."""
+
+from __future__ import annotations
+
+import logging
 import os
+import threading
+
+import joblib
+import pandas as pd
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from schemas import PMIRequest, PMIResponse
-from train_model import train as run_training, MODEL_PATH, FEATURES, NUMERIC_FEATURES, CATEGORICAL_FEATURES
+from security import limiter, require_admin_key
+from services.pmi_explain import explain_prediction, prediction_interval, reset_explainer
+from train_model import (
+    CATEGORICAL_FEATURES,
+    METRICS_PATH,
+    MODEL_PATH,
+    NUMERIC_FEATURES,
+    load_metrics,
+)
+from train_model import train as run_training
+from config import settings
+
+logger = logging.getLogger("watson_board.pmi")
 
 router = APIRouter()
 
-# ─── Global model holder ─────────────────────────────────────────────────────
-model = None
+# Guarded so a background retrain cannot swap the model out from under an
+# in-flight prediction, and two retrains cannot run concurrently.
+_model = None
+_model_lock = threading.RLock()
+_training_lock = threading.Lock()
 
-def load_model():
-    """Load the saved model from disk; auto-retrain if missing or incompatible."""
-    global model
+
+def get_model():
+    with _model_lock:
+        return _model
+
+
+def load_model() -> None:
+    """Load the persisted model; train one first if it is missing or unreadable."""
+    global _model
     if os.path.exists(MODEL_PATH):
         try:
-            model = joblib.load(MODEL_PATH)
-            print(f"Model loaded from {MODEL_PATH}")
+            loaded = joblib.load(MODEL_PATH)
+            with _model_lock:
+                _model = loaded
+            reset_explainer()
+            logger.info("PMI model loaded from %s", MODEL_PATH)
             return
-        except Exception as e:
-            print(f"Model load failed ({e}), retraining ...")
+        except Exception as exc:
+            logger.warning("PMI model load failed (%s); retraining.", exc)
     else:
-        print("No trained model found, training now ...")
+        logger.info("No trained PMI model found; training now.")
+
     try:
         run_training()
-        model = joblib.load(MODEL_PATH)
-        print("Model trained and loaded successfully.")
-    except Exception as e:
-        model = None
-        print(f"Auto-training failed: {e}")
+        loaded = joblib.load(MODEL_PATH)
+        with _model_lock:
+            _model = loaded
+        reset_explainer()
+        logger.info("PMI model trained and loaded.")
+    except Exception as exc:
+        with _model_lock:
+            _model = None
+        logger.error("PMI auto-training failed: %s", exc, exc_info=True)
 
-# ─── Feature importance helper ────────────────────────────────────────────────
-def extract_feature_importance(pipeline):
-    """
-    Extract per-feature importance from the trained pipeline and map
-    one-hot-encoded columns back to the original base features.
-    """
-    try:
-        preprocessor = pipeline.named_steps["preprocessor"]
-        rf = pipeline.named_steps["regressor"]
-
-        encoded_names = list(preprocessor.get_feature_names_out())
-        importances = rf.feature_importances_
-
-        base_importance = {}
-        for enc_name, imp in zip(encoded_names, importances):
-            matched = False
-            for col in NUMERIC_FEATURES:
-                tag = f"num__{col}"
-                if enc_name == tag:
-                    base_importance[col] = base_importance.get(col, 0.0) + imp
-                    matched = True
-                    break
-            if matched:
-                continue
-            for col in CATEGORICAL_FEATURES:
-                tag = f"cat__{col}_"
-                if enc_name.startswith(tag):
-                    base_importance[col] = base_importance.get(col, 0.0) + imp
-                    matched = True
-                    break
-            if not matched:
-                base_importance[enc_name] = base_importance.get(enc_name, 0.0) + imp
-
-        sorted_items = sorted(base_importance.items(), key=lambda x: x[1], reverse=True)
-        total = sum(v for _, v in sorted_items) or 1.0
-        return {k: round(v / total * 100, 2) for k, v in sorted_items}
-
-    except Exception as e:
-        print(f"Feature importance extraction failed: {e}")
-        return {"info": 0.0}
-
-
-# ─── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.post("/predict", response_model=PMIResponse)
-async def predict_pmi(request: PMIRequest):
-    """Predict Postmortem Interval (hours) from 12 forensic features."""
+@limiter.limit(settings.rate_limit_default)
+def predict_pmi(request: Request, payload: PMIRequest):
+    """
+    Estimate the post-mortem interval from decomposition indicators.
+
+    Invalid categorical values are rejected by the schema with a 422 listing
+    the permitted options — they previously fell through as an all-zero
+    one-hot vector and produced a confident but meaningless number.
+    """
+    model = get_model()
     if model is None:
         raise HTTPException(
-            status_code=503,
-            detail="Model not loaded. Train the model first via POST /train.",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="PMI model is not loaded. Train it via POST /api/pmi/train.",
         )
+
+    row = payload.to_feature_row()
 
     try:
-        data_dict = request.model_dump(by_alias=True)
-        df = pd.DataFrame([data_dict])
-
-        prediction = model.predict(df)[0]
-
-        rf = model.named_steps["regressor"]
-        preprocessed = model.named_steps["preprocessor"].transform(df)
-        tree_preds = np.array([t.predict(preprocessed)[0] for t in rf.estimators_])
-        std_dev = float(np.std(tree_preds))
-        mean_pred = float(np.mean(tree_preds))
-
-        if mean_pred > 0:
-            cv = std_dev / mean_pred
-            confidence = max(0.0, min(100.0, (1 - cv) * 100))
-        else:
-            confidence = 50.0
-
-        explanation = extract_feature_importance(model)
-
-        return PMIResponse(
-            predicted_pmi_hours=round(float(prediction), 1),
-            confidence_score=round(confidence, 1),
-            explanation=explanation,
-            message="Prediction successful.",
+        prediction = float(model.predict(pd.DataFrame([row]))[0])
+        low, high, confidence = prediction_interval(model, row)
+        contributions, base_value = explain_prediction(
+            model, row, NUMERIC_FEATURES, CATEGORICAL_FEATURES
         )
+    except Exception:
+        logger.error("PMI prediction failed for payload %r", row, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Prediction failed. The input was valid but the model could not score it.",
+        ) from None
 
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Prediction error: {e}")
+    return PMIResponse(
+        predicted_pmi_hours=round(prediction, 1),
+        confidence_interval_hours=[low, high],
+        confidence_score=confidence,
+        contributions=contributions,
+        baseline_hours=base_value,
+        message="Prediction successful.",
+    )
 
-@router.post("/train")
-async def train_endpoint(background_tasks: BackgroundTasks):
-    """Retrain the model in the background using the CSV on disk."""
-    def _train():
-        try:
-            run_training()
-            load_model()
-            print("Model retrained and reloaded.")
-        except Exception as e:
-            print(f"Training failed: {e}")
 
-    background_tasks.add_task(_train)
-    return {"message": "Training started in the background. Check server logs for progress."}
+@router.get("/model-info")
+def model_info():
+    """Training provenance and held-out metrics for the loaded model."""
+    metrics = load_metrics()
+    return {
+        "loaded": get_model() is not None,
+        "model_path": os.path.basename(MODEL_PATH),
+        "metrics_path": os.path.basename(METRICS_PATH),
+        "metrics": metrics,
+        "metrics_available": metrics is not None,
+    }
 
-# ─── Data Cleaning Module ──────────────────────────────────────────────────
-def clean_dataset(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-    fixes = 0
 
-    mask = (df["Putrefaction"] == 0) & (df["Putre_level"].isna())
-    n = mask.sum()
-    if n > 0:
-        df.loc[mask, "Putre_level"] = "None"
-        fixes += n
+@router.post("/train", dependencies=[Depends(require_admin_key)])
+@limiter.limit(settings.rate_limit_expensive)
+def train_endpoint(request: Request):
+    """
+    Retrain the model from the dataset on disk.
 
-    mask = df["Rigor Mortis"].isna()
-    n = mask.sum()
-    if n > 0:
-        df.loc[mask, "Rigor Mortis"] = "None"
-        fixes += n
-
-    mask = df["Livor Mortis"].isna()
-    n = mask.sum()
-    if n > 0:
-        df.loc[mask, "Livor Mortis"] = "None"
-        fixes += n
-
-    col = "abdominal cavity"
-    if col in df.columns:
-        neg = (df[col] < 0).sum()
-        if neg > 0:
-            df[col] = df[col].clip(lower=0)
-            fixes += neg
-
-    print(f"  Total cell-level fixes applied in data cleaning module: {fixes}")
-    return df
+    Admin-authenticated and rate limited — this was previously an open endpoint
+    anyone could hammer to pin every CPU on the host.
+    """
+    if not _training_lock.acquire(blocking=False):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A training run is already in progress.",
+        )
+    try:
+        metrics = run_training()
+        load_model()
+        return {"message": "Model retrained successfully.", "metrics": metrics}
+    except Exception:
+        logger.error("PMI retraining failed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Retraining failed. See server logs.",
+        ) from None
+    finally:
+        _training_lock.release()

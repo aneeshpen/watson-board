@@ -53,9 +53,7 @@ export function RiskMap() {
     if (zones.length === 1) {
       map.setView([zones[0].lat, zones[0].lng], 9);
     } else if (zones.length > 1) {
-      const bounds = L.latLngBounds(
-        zones.map((z) => [z.lat, z.lng] as [number, number]),
-      );
+      const bounds = L.latLngBounds(zones.map((z) => [z.lat, z.lng] as [number, number]));
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: districtFilter ? 10 : 8 });
     } else {
       map.setView(KA_OVERVIEW, KA_ZOOM);
@@ -86,8 +84,9 @@ export function RiskMap() {
       <MapInteractChrome shellRef={shellRef} mapRef={mapRef} onFullscreenChange={setFullscreen} />
       {missingData && (
         <div className="pointer-events-none absolute bottom-3 left-3 right-16 z-[500] rounded-md border border-warn/40 bg-background/90 px-3 py-2 text-center text-[11px] text-muted-foreground backdrop-blur">
-          No demo risk centroid for <span className="font-medium text-foreground">{districtFilter}</span>.
-          Choose another district or clear the filter.
+          No demo risk centroid for{" "}
+          <span className="font-medium text-foreground">{districtFilter}</span>. Choose another
+          district or clear the filter.
         </div>
       )}
     </div>

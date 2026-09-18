@@ -10,12 +10,15 @@ export function HypothesisPanel() {
           <Sparkles className="h-3.5 w-3.5 text-neon-2" />
           AI Hypothesis Engine
         </div>
-        <span className="rounded-md bg-neon-2/15 px-1.5 py-0.5 font-mono text-[10px] text-neon-2">live</span>
+        <span className="rounded-md bg-neon-2/15 px-1.5 py-0.5 font-mono text-[10px] text-neon-2">
+          live
+        </span>
       </div>
       {hypotheses.map((h, i) => (
         <motion.div
           key={h.id}
-          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: i * 0.05 }}
           className="glass rounded-xl p-3"
         >
@@ -26,11 +29,16 @@ export function HypothesisPanel() {
             </div>
             <div className="text-right">
               <div className="font-mono text-base text-primary">{h.confidence}%</div>
-              <div className="text-[10px] uppercase tracking-widest text-muted-foreground">conf</div>
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                conf
+              </div>
             </div>
           </div>
           <div className="mt-2 h-1 overflow-hidden rounded bg-secondary">
-            <div className="h-full bg-gradient-to-r from-neon-2 to-primary" style={{ width: `${h.confidence}%` }} />
+            <div
+              className="h-full bg-gradient-to-r from-neon-2 to-primary"
+              style={{ width: `${h.confidence}%` }}
+            />
           </div>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <div>
@@ -38,7 +46,9 @@ export function HypothesisPanel() {
                 <Check className="h-3 w-3" /> Supports
               </div>
               <ul className="space-y-0.5 text-[11px] text-muted-foreground">
-                {h.support.map((s) => <li key={s}>· {s}</li>)}
+                {h.support.map((s) => (
+                  <li key={s}>· {s}</li>
+                ))}
               </ul>
             </div>
             <div>
@@ -46,7 +56,9 @@ export function HypothesisPanel() {
                 <X className="h-3 w-3" /> Against
               </div>
               <ul className="space-y-0.5 text-[11px] text-muted-foreground">
-                {h.against.map((s) => <li key={s}>· {s}</li>)}
+                {h.against.map((s) => (
+                  <li key={s}>· {s}</li>
+                ))}
               </ul>
             </div>
           </div>

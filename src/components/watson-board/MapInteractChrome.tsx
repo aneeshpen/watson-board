@@ -42,10 +42,9 @@ export function MapInteractChrome({
 
   return (
     <div
-      className={[
-        "absolute right-3 top-3 z-[1100] flex flex-col gap-1.5",
-        className ?? "",
-      ].join(" ")}
+      className={["absolute right-3 top-3 z-[1100] flex flex-col gap-1.5", className ?? ""].join(
+        " ",
+      )}
     >
       <div className="flex flex-col overflow-hidden rounded-lg border border-primary/35 bg-background/95 shadow-md backdrop-blur-sm">
         <button

@@ -134,8 +134,9 @@ export function CommandHeader() {
             >
               {hits.length === 0 ? (
                 <div className="px-3 py-2.5 text-xs text-muted-foreground">
-                  No registry matches. Press <span className="font-mono text-foreground">Enter</span> to ask
-                  Copilot with this query.
+                  No registry matches. Press{" "}
+                  <span className="font-mono text-foreground">Enter</span> to ask Copilot with this
+                  query.
                 </div>
               ) : (
                 hits.map((h, i) => (
@@ -153,7 +154,9 @@ export function CommandHeader() {
                   >
                     <div className="flex items-baseline gap-2">
                       <span className="font-medium">{h.title}</span>
-                      <span className="font-mono text-[10px] uppercase tracking-wide text-primary">{h.kind}</span>
+                      <span className="font-mono text-[10px] uppercase tracking-wide text-primary">
+                        {h.kind}
+                      </span>
                     </div>
                     <span className="text-[11px] text-muted-foreground">{h.subtitle}</span>
                   </button>
